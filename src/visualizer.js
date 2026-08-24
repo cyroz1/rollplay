@@ -81,6 +81,11 @@ export class Visualizer {
     return note.channel >= 8 && note.channel !== 9;
   }
 
+  pixelsPerTick(width = this.canvas.width) {
+    const barsVisible = Math.max(1, Math.min(8, Number(this.settings.barsVisible) || 3));
+    return width / (this.project.ppq * 4 * barsVisible);
+  }
+
   refreshStepLanes() {
     this.stepLanes.clear();
     if (!this.settings.trackModes) return;
@@ -234,7 +239,7 @@ export class Visualizer {
     const tick = seconds * project.ppq * project.tempo / 60;
     const hitX = width * .41;
     this.refreshStepLanes();
-    const pixelsPerTick = 1.12 * width / 1080;
+    const pixelsPerTick = this.pixelsPerTick(width);
     const shownBefore = Math.ceil((hitX + width * .11) / pixelsPerTick);
     const shownAfter = Math.ceil((width - hitX + width * .2) / pixelsPerTick);
     context.globalAlpha = 1;

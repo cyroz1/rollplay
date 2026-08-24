@@ -19,6 +19,7 @@ const state = {
   settings: {
     background: "#ffffff",
     noteSize: 145,
+    barsVisible: 3,
     playhead: true,
     effects: true,
     percussion: true,
@@ -287,6 +288,12 @@ function bindControls() {
 
   element("background-input").oninput = event => { state.settings.background = event.target.value; state.visualizer?.draw(currentPosition()); };
   element("note-size-input").oninput = event => { state.settings.noteSize = Number(event.target.value); element("note-size-value").value = `${event.target.value}%`; state.visualizer?.draw(currentPosition()); };
+  element("bars-visible-input").oninput = event => {
+    const bars = Number(event.target.value);
+    state.settings.barsVisible = bars;
+    element("bars-visible-value").value = `${bars} ${bars === 1 ? "bar" : "bars"}`;
+    state.visualizer?.draw(currentPosition());
+  };
   for (const [id, key] of [["playhead-input", "playhead"], ["effects-input", "effects"], ["percussion-input", "percussion"]]) {
     element(id).onchange = event => { state.settings[key] = event.target.checked; state.visualizer?.draw(currentPosition()); };
   }

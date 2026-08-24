@@ -95,3 +95,32 @@ test("track layer order determines which overlapping notes render on top", async
   const purpleOnTop = canvas.getContext("2d").getImageData(sampleX, sampleY, 1, 1).data;
   assert.ok(purpleOnTop[2] > purpleOnTop[0], "Moving the second track above the first should change the visible overlap.");
 });
+
+test("horizontal zoom changes the visible range from one to eight bars", async context => {
+  let createCanvas;
+  try { ({ createCanvas } = createRequire(import.meta.url)("@napi-rs/canvas")); }
+  catch { context.skip("Optional native canvas package is not installed."); return; }
+
+  const note = { at: 0, length: 96, key: 60, channel: 0, velocity: 100, patternId: 1 };
+  const project = {
+    tempo: 120,
+    ppq: 96,
+    patterns: [{ id: 1, name: "Lead", notes: [note] }],
+    notes: [note],
+  };
+  const canvas = createCanvas(1080, 1920);
+  const settings = {
+    background: "#ffffff", noteSize: 145, barsVisible: 1, playhead: false, effects: false, percussion: true,
+    enabledPatterns: new Set([1]), trackModes: new Map([[1, "melody"]]), layerOrder: [1],
+  };
+  const visualizer = new Visualizer(canvas, project, settings);
+  const oneBar = visualizer.pixelsPerTick(1080);
+  assert.equal(oneBar * project.ppq * 4, 1080);
+  visualizer.draw(0);
+
+  settings.barsVisible = 8;
+  const eightBars = visualizer.pixelsPerTick(1080);
+  assert.equal(eightBars * project.ppq * 4 * 8, 1080);
+  assert.equal(oneBar / eightBars, 8, "Zooming from one to eight bars should change scrolling speed eightfold.");
+  visualizer.draw(0);
+});
