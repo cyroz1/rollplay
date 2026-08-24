@@ -79,6 +79,10 @@ test("layer styles support independent colors, opacity, and note animations", ()
   settings.layerStyles.get(1).noteAnimation = "none";
   assert.deepEqual(visualizer.color(note), ["#123456", "#abcdef"]);
   assert.deepEqual(visualizer.noteMotion(note, 24, 1), { size: 0, offset: 0 });
+  settings.layerStyles.get(1).noteAnimation = "drop";
+  assert.equal(visualizer.noteMotion(note, 0, 1).offset, 0, "Drop animation should begin at the note origin.");
+  assert.ok(visualizer.noteMotion(note, 96 * .21, 1).offset > 0, "Drop animation should move the note downward briefly.");
+  assert.ok(Math.abs(visualizer.noteMotion(note, 96 * .42, 1).offset) < 1e-9, "Drop animation should return to the note origin.");
 });
 
 test("step percussion notes render as filled diamonds", () => {
@@ -112,6 +116,22 @@ test("step percussion notes render as filled diamonds", () => {
 test("new layers default to a brightness pulse highlight", () => {
   assert.equal(createLayerStyle(0).playedNoteHighlight, "pulse");
   assert.equal(createLayerStyle(0).octaveOffset, 0);
+});
+
+test("3D projection separates layer depth and pushes the outer frame toward camera", () => {
+  const project = {
+    tempo: 120, ppq: 96,
+    patterns: [{ id: 1, name: "Front", notes: [] }, { id: 2, name: "Back", notes: [] }],
+    notes: [],
+  };
+  const settings = { framePreset: "portrait", layerOrder: [1, 2] };
+  const visualizer = new Visualizer({ width: 1080, height: 1920, getContext: () => ({}) }, project, settings);
+  const front = visualizer.perspectivePoint(540, 800, 1080, 1920, visualizer.layerDepth(1));
+  const back = visualizer.perspectivePoint(540, 800, 1080, 1920, visualizer.layerDepth(2));
+  const edge = visualizer.perspectivePoint(0, 800, 1080, 1920, visualizer.layerDepth(2));
+  assert.ok(front.scale > back.scale, "Foreground layers should project larger than background layers.");
+  assert.ok(edge.scale > back.scale, "The outer frame should project closer to the camera than its center.");
+  assert.ok(edge.x < 0, "The left edge should push past the source frame edge under perspective.");
 });
 
 test("fullscreen preview contains the canvas without stretching", async () => {

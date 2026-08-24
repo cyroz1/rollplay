@@ -83,6 +83,10 @@ function colorWithAlpha(color, opacity) {
   return /^#[\da-f]{6}$/i.test(color) ? `${color}${alpha}` : color;
 }
 
+function clamp(value, minimum, maximum) {
+  return Math.max(minimum, Math.min(maximum, value));
+}
+
 export class Visualizer {
   constructor(canvas, project, settings) {
     this.canvas = canvas;
@@ -142,6 +146,70 @@ export class Visualizer {
     };
   }
 
+  layerDepthForIndex(index, count) {
+    if (count <= 1) return .78;
+    return 1 - clamp(index, 0, count - 1) / (count - 1);
+  }
+
+  layerDepth(patternId, layerOrder = this.settings.layerOrder) {
+    const order = layerOrder?.length ? layerOrder : this.project.patterns.map(pattern => pattern.id);
+    const index = order.indexOf(patternId);
+    return this.layerDepthForIndex(index < 0 ? order.length - 1 : index, Math.max(1, order.length));
+  }
+
+  perspectivePoint(x, y, width, height, depth = 0) {
+    if (this.settings.depth3d === false) return { x, y, scale: 1, edge: 0 };
+    const vanishingX = this.playheadPosition(width);
+    const vanishingY = height * .5;
+    const halfWidth = Math.max(1, width * .5);
+    const edge = clamp(Math.abs(x - vanishingX) / halfWidth, 0, 1);
+    const edgeDepth = edge * edge * .22;
+    const z = clamp(.02 + clamp(depth, 0, 1) * .085 + edgeDepth, 0, .34);
+    const scale = 1 / (1 - z);
+    const yScale = 1 + (scale - 1) * .42;
+    return {
+      x: vanishingX + (x - vanishingX) * scale,
+      y: vanishingY + (y - vanishingY) * yScale,
+      scale,
+      edge,
+    };
+  }
+
+  drawDepthGuides(width, height, hitX) {
+    if (this.settings.depth3d === false) return;
+    const context = this.context;
+    const vanishingY = height * .5;
+    const scale = width / 1080;
+    context.save();
+    context.globalAlpha = .16;
+    context.strokeStyle = "#5a6b73";
+    context.lineWidth = Math.max(.8, scale);
+    context.lineCap = "round";
+    context.beginPath();
+    for (const y of [height * .06, height * .94]) {
+      context.moveTo(hitX, vanishingY);
+      context.lineTo(0, y);
+      context.moveTo(hitX, vanishingY);
+      context.lineTo(width, y);
+    }
+    context.stroke();
+
+    context.globalAlpha = .08;
+    for (const depth of [.2, .42, .66, .9]) {
+      const left = this.perspectivePoint(0, height * .06, width, height, depth);
+      const right = this.perspectivePoint(width, height * .06, width, height, depth);
+      const lowerLeft = this.perspectivePoint(0, height * .94, width, height, depth);
+      const lowerRight = this.perspectivePoint(width, height * .94, width, height, depth);
+      context.beginPath();
+      context.moveTo(left.x, left.y);
+      context.lineTo(right.x, right.y);
+      context.moveTo(lowerLeft.x, lowerLeft.y);
+      context.lineTo(lowerRight.x, lowerRight.y);
+      context.stroke();
+    }
+    context.restore();
+  }
+
   color(note) {
     const style = this.layerStyle(note.patternId);
     return style.colorMode === "solid" ? [style.primaryColor, style.primaryColor] : [style.primaryColor, style.secondaryColor];
@@ -153,6 +221,11 @@ export class Visualizer {
     if (hitAge < 0) return { size: 0, offset: 0 };
     const impact = Math.exp(-hitAge / (this.project.ppq * .19));
     if (style.noteAnimation === "pulse") return { size: impact * .72, offset: 0 };
+    if (style.noteAnimation === "drop") {
+      const duration = this.project.ppq * .42;
+      const progress = Math.min(1, hitAge / duration);
+      return { size: 0, offset: Math.sin(progress * Math.PI) * 22 * scale };
+    }
     if (style.noteAnimation === "wave") {
       return { size: impact * .2, offset: Math.sin(hitAge / this.project.ppq * Math.PI * 7.4) * impact * 18 * scale };
     }
@@ -243,17 +316,24 @@ export class Visualizer {
     context.globalAlpha = 1;
   }
 
-  drawNote(note, tick, width, height, hitX, pixelsPerTick) {
+  drawNote(note, tick, width, height, hitX, pixelsPerTick, depth = this.layerDepth(note.patternId)) {
     const context = this.context;
     const style = this.layerStyle(note.patternId);
     const [main, light] = this.color(note);
-    const x = hitX + (note.at - tick) * pixelsPerTick;
-    const scale = width / 1080;
-    const motion = this.noteMotion(note, tick, scale, style);
-    const y = this.noteY(note, height) + motion.offset;
-    const noteScale = this.settings.noteSize / 100;
+    const rawX = hitX + (note.at - tick) * pixelsPerTick;
+    const baseScale = width / 1080;
+    const motion = this.noteMotion(note, tick, baseScale, style);
+    const rawY = this.noteY(note, height) + motion.offset;
+    const noteScale = Number(this.settings.noteSize ?? 100) / 100;
     const step = this.isStep(note);
-    const noteWidth = Math.max((step ? 13 : 20) * scale * Math.sqrt(noteScale), note.length * pixelsPerTick);
+    const rawNoteWidth = Math.max((step ? 13 : 20) * baseScale * Math.sqrt(noteScale), note.length * pixelsPerTick);
+    const projection = this.perspectivePoint(rawX + rawNoteWidth * .5, rawY, width, height, depth);
+    const startProjection = this.perspectivePoint(rawX, rawY, width, height, depth);
+    const endProjection = this.perspectivePoint(rawX + rawNoteWidth, rawY, width, height, depth);
+    const x = startProjection.x;
+    const y = projection.y;
+    const scale = baseScale * projection.scale;
+    const noteWidth = Math.max(1, endProjection.x - startProjection.x);
     const bounce = motion.size;
     const sounding = note.at <= tick && note.at + note.length > tick;
     const highlightOpacity = this.noteHighlightOpacity(note, tick, style);
@@ -269,18 +349,26 @@ export class Visualizer {
         stepColor.addColorStop(0, main);
         stepColor.addColorStop(1, light);
       }
+      if (x + stepSize < -25 || x - stepSize > width + 30) return;
+      const extrusion = (3 + depth * 11 + projection.edge * 8) * baseScale;
+      diamond(context, x + extrusion, y + extrusion * .72, stepSize, "#142027", fade * velocity * style.opacity * .28, true);
       diamond(context, x, y, stepSize, stepColor, fade * velocity * style.opacity, true);
       if (highlightOpacity > 0) diamond(context, x, y, stepSize * .58, "#ffffff", highlightOpacity * fade * style.opacity, true);
       return;
     }
 
-    if (x + noteWidth < -25 || x > width + 30) return;
+    if (endProjection.x < -25 || x > width + 30) return;
     const bass = note.channel === 7 || note.channel === 9;
     const baseHeight = (note.channel === 6 ? 15 : 19) * scale * noteScale;
     const noteHeight = baseHeight * (1 + bounce * (bass ? .35 : .56));
     const gradient = context.createLinearGradient(x, y, x + noteWidth, y);
     gradient.addColorStop(0, main); gradient.addColorStop(1, light);
-    context.globalAlpha = fade * velocity * style.opacity;
+    const alpha = fade * velocity * style.opacity;
+    const extrusion = (3 + depth * 11 + projection.edge * 8) * baseScale;
+    context.globalAlpha = alpha * .28;
+    context.fillStyle = "#142027";
+    rounded(context, x + extrusion, y + extrusion * .72 - noteHeight / 2, noteWidth, noteHeight, 8 * scale);
+    context.globalAlpha = alpha;
     context.fillStyle = gradient;
     rounded(context, x, y - noteHeight / 2, noteWidth, noteHeight, 8 * scale);
     if (highlightOpacity > 0) {
@@ -322,18 +410,20 @@ export class Visualizer {
     }
   }
 
-  drawHit(note, tick, width, height, hitX) {
+  drawHit(note, tick, width, height, hitX, depth = this.layerDepth(note.patternId)) {
     const pulseLife = this.project.ppq * 1.04;
     const elapsed = tick - note.at;
     if (elapsed < 0 || elapsed > pulseLife) return;
     const context = this.context;
-    const scale = width / 1080;
+    const baseScale = width / 1080;
     const life = elapsed / pulseLife;
     const fade = Math.pow(1 - life, 1.35);
     const eased = 1 - Math.pow(1 - life, 3);
     const style = this.layerStyle(note.patternId);
     const [main, light] = this.color(note);
-    const y = this.noteY(note, height);
+    const projection = this.perspectivePoint(hitX, this.noteY(note, height), width, height, depth);
+    const scale = baseScale * projection.scale;
+    const y = projection.y;
 
     context.globalAlpha = fade * fade * .24 * style.opacity;
     context.fillStyle = light;
@@ -374,6 +464,7 @@ export class Visualizer {
     this.drawBackground();
     context.save();
     if (landscape) context.setTransform(0, -1, 1, 0, 0, canvas.height);
+    this.drawDepthGuides(width, height, hitX);
     if (settings.playhead) this.drawPlayhead(width, height, hitX);
 
     const start = Math.max(0, lowerBound(project.notes, tick - shownBefore) - 160);
@@ -386,7 +477,8 @@ export class Visualizer {
     }
     const layerOrder = settings.layerOrder?.length ? settings.layerOrder : project.patterns.map(pattern => pattern.id);
     for (let index = layerOrder.length - 1; index >= 0; index--) {
-      for (const note of visible) if (note.patternId === layerOrder[index]) this.drawNote(note, tick, width, height, hitX, pixelsPerTick);
+      const depth = this.layerDepthForIndex(index, layerOrder.length);
+      for (const note of visible) if (note.patternId === layerOrder[index]) this.drawNote(note, tick, width, height, hitX, pixelsPerTick, depth);
     }
 
     if (settings.effects) {
@@ -398,7 +490,8 @@ export class Visualizer {
         if (settings.enabledPatterns.has(note.patternId)) activeHits.push(note);
       }
       for (let index = layerOrder.length - 1; index >= 0; index--) {
-        for (const note of activeHits) if (note.patternId === layerOrder[index]) this.drawHit(note, tick, width, height, hitX);
+        const depth = this.layerDepthForIndex(index, layerOrder.length);
+        for (const note of activeHits) if (note.patternId === layerOrder[index]) this.drawHit(note, tick, width, height, hitX, depth);
       }
     }
     context.restore();
