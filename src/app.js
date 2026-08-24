@@ -20,6 +20,7 @@ const state = {
     background: "#ffffff",
     noteSize: 145,
     barsVisible: 3,
+    framePreset: "portrait",
     playhead: true,
     effects: true,
     percussion: true,
@@ -271,6 +272,20 @@ async function exportVideo() {
   }
 }
 
+function applyFrameSettings(resolution, preset) {
+  const [width, height] = resolution.split("x").map(Number);
+  state.settings.resolution = resolution;
+  state.settings.framePreset = preset;
+  element("resolution-input").value = resolution;
+  element("frame-preset-input").value = preset;
+  element("zoom-axis-label").textContent = preset === "landscape" ? "Vertical zoom" : "Horizontal zoom";
+  element("preview-frame").style.aspectRatio = `${width} / ${height}`;
+  const canvas = element("preview");
+  canvas.width = width;
+  canvas.height = height;
+  state.visualizer?.draw(currentPosition());
+}
+
 function bindControls() {
   element("flp-input").addEventListener("change", event => loadFlp(event.target.files[0]));
   element("audio-input").addEventListener("change", event => loadAudio(event.target.files[0]));
@@ -287,6 +302,10 @@ function bindControls() {
   element("midi-button").onclick = () => download(new Blob([createMidi(state.project, state.settings.enabledPatterns)], { type: "audio/midi" }), `${state.fileName}.mid`);
 
   element("background-input").oninput = event => { state.settings.background = event.target.value; state.visualizer?.draw(currentPosition()); };
+  element("frame-preset-input").onchange = event => {
+    const preset = event.target.value;
+    applyFrameSettings(preset === "landscape" ? "1920x1080" : "1080x1920", preset);
+  };
   element("note-size-input").oninput = event => { state.settings.noteSize = Number(event.target.value); element("note-size-value").value = `${event.target.value}%`; state.visualizer?.draw(currentPosition()); };
   element("bars-visible-input").oninput = event => {
     const bars = Number(event.target.value);
@@ -297,7 +316,10 @@ function bindControls() {
   for (const [id, key] of [["playhead-input", "playhead"], ["effects-input", "effects"], ["percussion-input", "percussion"]]) {
     element(id).onchange = event => { state.settings[key] = event.target.checked; state.visualizer?.draw(currentPosition()); };
   }
-  element("resolution-input").onchange = event => { state.settings.resolution = event.target.value; const [width, height] = event.target.value.split("x").map(Number); element("preview-frame").style.aspectRatio = `${width} / ${height}`; };
+  element("resolution-input").onchange = event => {
+    const [width, height] = event.target.value.split("x").map(Number);
+    applyFrameSettings(event.target.value, width > height ? "landscape" : "portrait");
+  };
   element("fps-input").onchange = event => { state.settings.fps = Number(event.target.value); };
   element("size-input").onchange = event => { state.settings.maxSize = Number(event.target.value); };
   document.querySelectorAll(".nav-link").forEach(button => button.onclick = () => {

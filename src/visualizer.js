@@ -234,17 +234,21 @@ export class Visualizer {
 
   draw(seconds) {
     const { canvas, context, project, settings } = this;
-    const width = canvas.width;
-    const height = canvas.height;
+    const landscape = settings.framePreset === "landscape";
+    const width = landscape ? canvas.height : canvas.width;
+    const height = landscape ? canvas.width : canvas.height;
     const tick = seconds * project.ppq * project.tempo / 60;
-    const hitX = width * .41;
+    const hitX = width * (landscape ? .16 : .41);
     this.refreshStepLanes();
     const pixelsPerTick = this.pixelsPerTick(width);
     const shownBefore = Math.ceil((hitX + width * .11) / pixelsPerTick);
     const shownAfter = Math.ceil((width - hitX + width * .2) / pixelsPerTick);
     context.globalAlpha = 1;
+    context.setTransform(1, 0, 0, 1, 0, 0);
     context.fillStyle = settings.background;
-    context.fillRect(0, 0, width, height);
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.save();
+    if (landscape) context.setTransform(0, -1, 1, 0, 0, canvas.height);
     if (settings.playhead) this.drawPlayhead(width, height, hitX);
 
     const start = Math.max(0, lowerBound(project.notes, tick - shownBefore) - 160);
@@ -272,5 +276,6 @@ export class Visualizer {
         for (const note of activeHits) if (note.patternId === layerOrder[index]) this.drawHit(note, tick, width, height, hitX);
       }
     }
+    context.restore();
   }
 }

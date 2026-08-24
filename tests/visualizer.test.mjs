@@ -124,3 +124,37 @@ test("horizontal zoom changes the visible range from one to eight bars", async c
   assert.equal(oneBar / eightBars, 8, "Zooming from one to eight bars should change scrolling speed eightfold.");
   visualizer.draw(0);
 });
+
+test("landscape preset drops notes toward a horizontal playhead near the bottom", async context => {
+  let createCanvas;
+  try { ({ createCanvas } = createRequire(import.meta.url)("@napi-rs/canvas")); }
+  catch { context.skip("Optional native canvas package is not installed."); return; }
+
+  const note = { at: 96, length: 96, key: 60, channel: 0, velocity: 127, patternId: 1 };
+  const project = {
+    tempo: 120, ppq: 96,
+    patterns: [{ id: 1, name: "Lead", notes: [note] }],
+    notes: [note],
+  };
+  const canvas = createCanvas(1920, 1080);
+  const settings = {
+    background: "#ffffff", noteSize: 145, barsVisible: 1, framePreset: "landscape", playhead: true, effects: false,
+    percussion: true, enabledPatterns: new Set([1]), trackModes: new Map([[1, "melody"]]), layerOrder: [1],
+  };
+  const visualizer = new Visualizer(canvas, project, settings);
+  const context2d = canvas.getContext("2d");
+  const playheadY = Math.round(1080 * .84);
+  const noteX = Math.round(visualizer.noteY(note, 1920));
+  const pixelsPerTick = visualizer.pixelsPerTick(1080);
+  const noteCenterY = Math.round(playheadY - (note.at + note.length / 2) * pixelsPerTick);
+
+  visualizer.draw(0);
+  const playhead = context2d.getImageData(960, playheadY, 1, 1).data;
+  assert.ok(playhead[0] < 255 || playhead[1] < 255 || playhead[2] < 255, "A horizontal playhead should appear near the bottom.");
+  const incoming = context2d.getImageData(noteX, noteCenterY, 1, 1).data;
+  assert.ok(incoming[1] < 250, "Upcoming notes should appear above the playhead.");
+
+  visualizer.draw(.25);
+  const descending = context2d.getImageData(noteX, Math.round(noteCenterY + project.ppq / 2 * pixelsPerTick), 1, 1).data;
+  assert.ok(descending[1] < 250, "As playback progresses, notes should travel downward.");
+});

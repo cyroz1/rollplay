@@ -7,6 +7,7 @@ A dependency-free, browser-native FL Studio project visualizer, MIDI exporter, a
 - Reads FL Studio project binaries directly, including FL Studio 26 pattern notes and playlist arrangements.
 - Extracts tempo, channels, named patterns, arranged clips, note velocity, and timing.
 - Displays a responsive, animated piano roll with per-pattern colors, a vertical playhead, hit effects, hearts, and percussion diamonds.
+- Offers portrait and landscape frame presets; landscape mode drops notes toward a horizontal playhead near the bottom.
 - Switches any track independently between melodic piano-roll bars and step-percussion diamond rendering.
 - Reorders track layers with drag-and-drop or up/down controls, keeping previews, hit effects, and exported video in sync.
 - Adjusts horizontal zoom from one to eight visible bars, changing piano-roll scale and perceived scroll speed in previews and exports.
