@@ -71,7 +71,20 @@
         <section class="rail-section">
           <h2>VISUAL STYLE</h2>
           <label class="stacked-control"><span>Frame preset</span><select id="frame-preset-input"><option value="portrait">Portrait · 9:16</option><option value="landscape">Landscape · 16:9</option></select></label>
-          <label class="control-row"><span>Background</span><input id="background-input" type="color" value="#ffffff" aria-label="Background color" /></label>
+          <label class="stacked-control"><span>Background</span><select id="background-mode-input" aria-label="Background mode"><option value="solid">Solid color</option><option value="gradient">Gradient</option><option value="image">Imported image</option></select></label>
+          <div class="background-solid-controls" id="background-solid-controls">
+            <label class="control-row"><span>Background color</span><input id="background-input" type="color" value="#ffffff" aria-label="Background color" /></label>
+          </div>
+          <div class="background-gradient-controls hidden" id="background-gradient-controls">
+            <label class="control-row"><span>Gradient start</span><input id="background-gradient-start" type="color" value="#ffffff" aria-label="Background gradient start color" /></label>
+            <label class="control-row"><span>Gradient end</span><input id="background-gradient-end" type="color" value="#a78bef" aria-label="Background gradient end color" /></label>
+            <label class="stacked-control"><span>Gradient angle <output id="background-gradient-angle-value">135°</output></span><input id="background-gradient-angle-input" type="range" min="0" max="360" step="1" value="135" aria-label="Background gradient angle" /></label>
+          </div>
+          <div class="background-image-controls hidden" id="background-image-controls">
+            <label class="button button-quiet background-image-button" for="background-image-input">Import image<input id="background-image-input" type="file" accept="image/*" /></label>
+            <small class="background-image-name" id="background-image-name">No image selected</small>
+            <label class="stacked-control"><span>Image fit</span><select id="background-image-fit-input" aria-label="Background image fit"><option value="cover">Cover</option><option value="contain">Contain</option><option value="stretch">Stretch</option></select></label>
+          </div>
           <label class="stacked-control"><span>Note size <output id="note-size-value">145%</output></span><input id="note-size-input" type="range" min="60" max="240" value="145" /></label>
           <label class="stacked-control"><span><span id="zoom-axis-label">Horizontal zoom</span> <output id="bars-visible-value">3 bars</output></span><input id="bars-visible-input" type="range" min="1" max="8" step="1" value="3" aria-label="Visible bars" /></label>
           <label class="control-row"><span>Playhead</span><input id="playhead-input" class="switch" type="checkbox" checked /></label>

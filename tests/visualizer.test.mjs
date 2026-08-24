@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { parseFlp } from "../src/flp-parser.js";
-import { Visualizer, createLayerStyle } from "../src/visualizer.js";
+import { Visualizer, backgroundImageRect, createLayerStyle } from "../src/visualizer.js";
 import { muxMp4 } from "../src/mp4-muxer.js";
 import { createColorRamp } from "../src/color-utils.js";
 
@@ -81,6 +81,34 @@ test("layer styles support independent colors, opacity, and note animations", ()
   assert.deepEqual(visualizer.noteMotion(note, 24, 1), { size: 0, offset: 0 });
 });
 
+test("step percussion notes render as filled diamonds", () => {
+  const calls = [];
+  const context = {
+    save() { calls.push("save"); },
+    restore() { calls.push("restore"); },
+    beginPath() { calls.push("beginPath"); },
+    moveTo() {},
+    lineTo() {},
+    closePath() {},
+    fill() { calls.push("fill"); },
+    stroke() { calls.push("stroke"); },
+  };
+  const note = { at: 0, length: 96, key: 42, channel: 10, velocity: 100, patternId: 1 };
+  const project = { tempo: 120, ppq: 96, patterns: [{ id: 1, name: "Percussion", notes: [note] }], notes: [note] };
+  const settings = {
+    effects: false,
+    percussion: true,
+    trackModes: new Map([[1, "step"]]),
+    layerStyles: new Map([[1, { ...createLayerStyle(0), colorMode: "solid", playedNoteHighlight: "none" }]]),
+  };
+  const visualizer = new Visualizer({ width: 1080, height: 1920, getContext: () => context }, project, settings);
+
+  visualizer.drawNote(note, 0, 1080, 1920, 540, 1);
+
+  assert.ok(calls.includes("fill"), "Step percussion diamonds should be filled.");
+  assert.equal(calls.includes("stroke"), false, "Step percussion diamonds should not fall back to outlines.");
+});
+
 test("new layers default to a brightness pulse highlight", () => {
   assert.equal(createLayerStyle(0).playedNoteHighlight, "pulse");
   assert.equal(createLayerStyle(0).octaveOffset, 0);
@@ -90,6 +118,12 @@ test("fullscreen preview contains the canvas without stretching", async () => {
   const styles = await readFile(new URL("../styles.css", import.meta.url), "utf8");
   assert.match(styles, /\.preview-frame:fullscreen\s*\{[^}]*width:\s*100vw;[^}]*height:\s*100vh;[^}]*aspect-ratio:\s*auto;/s);
   assert.match(styles, /\.preview-frame:fullscreen\s+canvas\s*\{[^}]*width:\s*auto;[^}]*height:\s*auto;[^}]*max-width:\s*100%;[^}]*max-height:\s*100%;[^}]*object-fit:\s*contain;/s);
+});
+
+test("background image fitting preserves aspect ratio", () => {
+  assert.deepEqual(backgroundImageRect(1000, 1000, 2000, 1000, "contain"), { x: 0, y: 250, width: 1000, height: 500 });
+  assert.deepEqual(backgroundImageRect(1000, 1000, 2000, 1000, "cover"), { x: -500, y: 0, width: 2000, height: 1000 });
+  assert.deepEqual(backgroundImageRect(1000, 1000, 2000, 1000, "stretch"), { x: 0, y: 0, width: 1000, height: 1000 });
 });
 
 test("renders actual FLP notes and the playhead to a real canvas", async context => {

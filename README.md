@@ -10,6 +10,7 @@ A dependency-free, browser-native FL Studio project visualizer, MIDI exporter, a
 - Extracts tempo, channels, named patterns, arranged clips, note velocity, and timing.
 - Displays a responsive, animated piano roll with per-pattern colors, a vertical playhead, hit effects, hearts, and percussion diamonds.
 - Offers portrait and landscape frame presets; landscape mode drops notes toward a horizontal playhead whose default position is centered and configurable from bottom to top.
+- Supports solid-color, angled-gradient, and imported-image backgrounds with cover, contain, or stretch fitting.
 - Switches any track independently between melodic piano-roll bars and step-percussion diamond rendering.
 - Reorders track layers with drag-and-drop or up/down controls, keeping previews, hit effects, and exported video in sync.
 - Selects one or many layers for shared solid or gradient colors, transparency, octave offsets, note motion, and particle animation styles.

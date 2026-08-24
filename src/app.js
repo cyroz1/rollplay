@@ -21,6 +21,13 @@ const state = {
   lastSelectedPatternId: null,
   settings: {
     background: "#ffffff",
+    backgroundMode: "solid",
+    backgroundGradientStart: "#ffffff",
+    backgroundGradientEnd: "#a78bef",
+    backgroundGradientAngle: 135,
+    backgroundImage: null,
+    backgroundImageName: "",
+    backgroundImageFit: "cover",
     noteSize: 145,
     barsVisible: 3,
     framePreset: "portrait",
@@ -53,6 +60,41 @@ function notify(message, timeout = 3200) {
   toast.classList.add("visible");
   clearTimeout(notify.timer);
   notify.timer = setTimeout(() => toast.classList.remove("visible"), timeout);
+}
+
+function refreshBackgroundControls() {
+  const mode = state.settings.backgroundMode ?? "solid";
+  element("background-mode-input").value = mode;
+  element("background-solid-controls").classList.toggle("hidden", mode !== "solid");
+  element("background-gradient-controls").classList.toggle("hidden", mode !== "gradient");
+  element("background-image-controls").classList.toggle("hidden", mode !== "image");
+  element("background-input").value = state.settings.background;
+  element("background-gradient-start").value = state.settings.backgroundGradientStart;
+  element("background-gradient-end").value = state.settings.backgroundGradientEnd;
+  element("background-gradient-angle-input").value = String(state.settings.backgroundGradientAngle);
+  element("background-gradient-angle-value").value = `${state.settings.backgroundGradientAngle}°`;
+  element("background-image-fit-input").value = state.settings.backgroundImageFit;
+  element("background-image-name").textContent = state.settings.backgroundImageName || "No image selected";
+}
+
+async function loadBackgroundImage(file) {
+  if (!file) return;
+  try {
+    if (typeof createImageBitmap !== "function") throw new Error("Image backgrounds require a browser with image decoding support.");
+    const bitmap = await createImageBitmap(file);
+    state.settings.backgroundImage?.close?.();
+    state.settings.backgroundImage = bitmap;
+    state.settings.backgroundImageName = file.name;
+    state.settings.backgroundMode = "image";
+    refreshBackgroundControls();
+    state.visualizer?.draw(currentPosition());
+    notify(`Background image loaded · ${file.name}`);
+  } catch (error) {
+    notify(`Unable to load background image: ${error.message}`, 5000);
+    console.error(error);
+  } finally {
+    element("background-image-input").value = "";
+  }
 }
 
 function download(blob, name) {
@@ -453,7 +495,24 @@ function bindControls() {
     refreshLayerStyleControls();
   };
 
+  element("background-mode-input").onchange = event => {
+    state.settings.backgroundMode = event.target.value;
+    refreshBackgroundControls();
+    state.visualizer?.draw(currentPosition());
+  };
   element("background-input").oninput = event => { state.settings.background = event.target.value; state.visualizer?.draw(currentPosition()); };
+  element("background-gradient-start").oninput = event => { state.settings.backgroundGradientStart = event.target.value; state.visualizer?.draw(currentPosition()); };
+  element("background-gradient-end").oninput = event => { state.settings.backgroundGradientEnd = event.target.value; state.visualizer?.draw(currentPosition()); };
+  element("background-gradient-angle-input").oninput = event => {
+    state.settings.backgroundGradientAngle = Number(event.target.value);
+    element("background-gradient-angle-value").value = `${event.target.value}°`;
+    state.visualizer?.draw(currentPosition());
+  };
+  element("background-image-input").onchange = event => loadBackgroundImage(event.target.files[0]);
+  element("background-image-fit-input").onchange = event => {
+    state.settings.backgroundImageFit = event.target.value;
+    state.visualizer?.draw(currentPosition());
+  };
   element("frame-preset-input").onchange = event => {
     const preset = event.target.value;
     applyFrameSettings(preset === "landscape" ? "1920x1080" : "1080x1920", preset);
@@ -534,5 +593,6 @@ function animationLoop() {
 }
 
 bindControls();
+refreshBackgroundControls();
 requestAnimationFrame(animationLoop);
 window.__ROLLPLAY__ = { state, loadFlp, loadAudio, seek, setPlaying, exportVideo, parseFlp, createMidi, movePatternLayer };

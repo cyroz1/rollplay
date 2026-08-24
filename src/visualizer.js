@@ -20,6 +20,20 @@ export function createLayerStyle(index = 0) {
   };
 }
 
+export function backgroundImageRect(canvasWidth, canvasHeight, imageWidth, imageHeight, fit = "cover") {
+  const targetWidth = Math.max(1, Number(canvasWidth) || 1);
+  const targetHeight = Math.max(1, Number(canvasHeight) || 1);
+  const sourceWidth = Math.max(1, Number(imageWidth) || 1);
+  const sourceHeight = Math.max(1, Number(imageHeight) || 1);
+  if (fit === "stretch") return { x: 0, y: 0, width: targetWidth, height: targetHeight };
+  const scale = fit === "contain"
+    ? Math.min(targetWidth / sourceWidth, targetHeight / sourceHeight)
+    : Math.max(targetWidth / sourceWidth, targetHeight / sourceHeight);
+  const width = sourceWidth * scale;
+  const height = sourceHeight * scale;
+  return { x: (targetWidth - width) / 2, y: (targetHeight - height) / 2, width, height };
+}
+
 function lowerBound(notes, tick) {
   let low = 0, high = notes.length;
   while (low < high) {
@@ -173,6 +187,38 @@ export class Visualizer {
     return width * Math.max(0, Math.min(1, position));
   }
 
+  drawBackground() {
+    const { canvas, context, settings } = this;
+    const solid = /^#[\da-f]{6}$/i.test(settings.background) ? settings.background : "#ffffff";
+    const mode = settings.backgroundMode ?? "solid";
+    if (mode === "gradient") {
+      const start = /^#[\da-f]{6}$/i.test(settings.backgroundGradientStart) ? settings.backgroundGradientStart : solid;
+      const end = /^#[\da-f]{6}$/i.test(settings.backgroundGradientEnd) ? settings.backgroundGradientEnd : solid;
+      const angle = ((Number(settings.backgroundGradientAngle) || 0) % 360) * Math.PI / 180;
+      const length = Math.hypot(canvas.width, canvas.height) / 2;
+      const centerX = canvas.width / 2;
+      const centerY = canvas.height / 2;
+      const gradient = context.createLinearGradient(
+        centerX - Math.cos(angle) * length,
+        centerY - Math.sin(angle) * length,
+        centerX + Math.cos(angle) * length,
+        centerY + Math.sin(angle) * length,
+      );
+      gradient.addColorStop(0, start);
+      gradient.addColorStop(1, end);
+      context.fillStyle = gradient;
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      return;
+    }
+
+    context.fillStyle = solid;
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    const image = mode === "image" ? settings.backgroundImage : null;
+    if (!image || typeof context.drawImage !== "function") return;
+    const rect = backgroundImageRect(canvas.width, canvas.height, image.width, image.height, settings.backgroundImageFit);
+    context.drawImage(image, rect.x, rect.y, rect.width, rect.height);
+  }
+
   drawPlayhead(width, height, hitX) {
     const context = this.context;
     const style = this.playheadStyle(width);
@@ -223,7 +269,7 @@ export class Visualizer {
         stepColor.addColorStop(0, main);
         stepColor.addColorStop(1, light);
       }
-      diamond(context, x, y, stepSize, stepColor, fade * velocity * style.opacity, note.channel === 8);
+      diamond(context, x, y, stepSize, stepColor, fade * velocity * style.opacity, true);
       if (highlightOpacity > 0) diamond(context, x, y, stepSize * .58, "#ffffff", highlightOpacity * fade * style.opacity, true);
       return;
     }
@@ -325,8 +371,7 @@ export class Visualizer {
     const shownAfter = Math.ceil((width - hitX + width * .2) / pixelsPerTick);
     context.globalAlpha = 1;
     context.setTransform(1, 0, 0, 1, 0, 0);
-    context.fillStyle = settings.background;
-    context.fillRect(0, 0, canvas.width, canvas.height);
+    this.drawBackground();
     context.save();
     if (landscape) context.setTransform(0, -1, 1, 0, 0, canvas.height);
     if (settings.playhead) this.drawPlayhead(width, height, hitX);

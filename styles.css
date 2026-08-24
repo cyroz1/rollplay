@@ -71,3 +71,9 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
   max-height:100%;
   object-fit:contain;
 }
+
+.background-solid-controls.hidden,.background-gradient-controls.hidden,.background-image-controls.hidden{display:none}
+.background-image-button{display:flex;align-items:center;justify-content:center}
+.background-image-button input{display:none}
+.background-image-name{display:block;overflow:hidden;margin:8px 0 2px;color:var(--muted);font-size:10px;line-height:1.4;text-overflow:ellipsis;white-space:nowrap}
+.background-image-controls .stacked-control{margin-top:12px}
