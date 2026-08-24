@@ -118,7 +118,7 @@ test("new layers default to a brightness pulse highlight", () => {
   assert.equal(createLayerStyle(0).octaveOffset, 0);
 });
 
-test("3D projection separates layer depth and pushes the outer frame toward camera", () => {
+test("layer parallax makes foreground layers travel faster than background layers", () => {
   const project = {
     tempo: 120, ppq: 96,
     patterns: [{ id: 1, name: "Front", notes: [] }, { id: 2, name: "Back", notes: [] }],
@@ -126,12 +126,12 @@ test("3D projection separates layer depth and pushes the outer frame toward came
   };
   const settings = { framePreset: "portrait", layerOrder: [1, 2] };
   const visualizer = new Visualizer({ width: 1080, height: 1920, getContext: () => ({}) }, project, settings);
-  const front = visualizer.perspectivePoint(540, 800, 1080, 1920, visualizer.layerDepth(1));
-  const back = visualizer.perspectivePoint(540, 800, 1080, 1920, visualizer.layerDepth(2));
-  const edge = visualizer.perspectivePoint(0, 800, 1080, 1920, visualizer.layerDepth(2));
-  assert.ok(front.scale > back.scale, "Foreground layers should project larger than background layers.");
-  assert.ok(edge.scale > back.scale, "The outer frame should project closer to the camera than its center.");
-  assert.ok(edge.x < 0, "The left edge should push past the source frame edge under perspective.");
+  const front = visualizer.layerSpeed(1);
+  const back = visualizer.layerSpeed(2);
+  assert.ok(front > 1, "Foreground layers should move faster than the base timeline.");
+  assert.ok(back < 1, "Background layers should move slower than the base timeline.");
+  assert.ok(front > back, "Foreground layers should travel faster than background layers.");
+  assert.equal(visualizer.layerSpeedForIndex(0, 1), 1, "A single layer should keep the normal travel speed.");
 });
 
 test("fullscreen preview contains the canvas without stretching", async () => {
