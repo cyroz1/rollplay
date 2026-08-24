@@ -24,7 +24,7 @@ test("layer styles support independent colors, opacity, and note animations", ()
     effects: true,
     layerStyles: new Map([[1, {
       ...createLayerStyle(0), colorMode: "solid", primaryColor: "#123456", secondaryColor: "#abcdef",
-      opacity: .35, noteAnimation: "wave", particleAnimation: "float",
+      opacity: .35, noteAnimation: "wave", playedNoteHighlight: "constant", particleAnimation: "float",
     }]]),
   };
   const canvas = { width: 1080, height: 1920, getContext: () => ({}) };
@@ -33,7 +33,18 @@ test("layer styles support independent colors, opacity, and note animations", ()
   assert.deepEqual(visualizer.color(note), ["#123456", "#123456"], "Solid layers should use the primary color at both gradient stops.");
   assert.equal(visualizer.layerStyle(1).opacity, .35);
   assert.equal(visualizer.layerStyle(1).particleAnimation, "float");
+  assert.equal(visualizer.noteHighlightOpacity(note, 24), .28);
   assert.notEqual(visualizer.noteMotion(note, 24, 1).offset, 0, "Wave animation should offset a recently hit note.");
+
+  settings.layerStyles.get(1).playedNoteHighlight = "pulse";
+  assert.notEqual(visualizer.noteHighlightOpacity(note, 12), visualizer.noteHighlightOpacity(note, 36));
+  settings.layerStyles.get(1).playedNoteHighlight = "none";
+  assert.equal(visualizer.noteHighlightOpacity(note, 24), 0);
+  settings.layerStyles.get(1).playedNoteHighlight = "constant";
+  assert.equal(visualizer.noteHighlightOpacity(note, note.length), 0, "Finished notes should not remain highlighted.");
+
+  Object.assign(settings, { playheadColor: "#123456", playheadThickness: 20, playheadGlow: 125, playheadOpacity: 5 });
+  assert.deepEqual(visualizer.playheadStyle(1080), { color: "#123456", thickness: 12, glow: 1, opacity: .1 });
 
   settings.layerStyles.get(1).colorMode = "gradient";
   settings.layerStyles.get(1).noteAnimation = "none";

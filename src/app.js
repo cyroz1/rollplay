@@ -25,6 +25,10 @@ const state = {
     barsVisible: 3,
     framePreset: "portrait",
     playhead: true,
+    playheadColor: "#ff9d45",
+    playheadThickness: 3,
+    playheadGlow: 55,
+    playheadOpacity: 100,
     effects: true,
     percussion: true,
     resolution: "1080x1920",
@@ -132,9 +136,10 @@ function refreshLayerStyleControls() {
   element("selection-count").textContent = selected.length ? `${selected.length} selected` : "None selected";
   if (!styles.length) return;
 
-  const properties = ["noteAnimation", "particleAnimation", "colorMode", "primaryColor", "secondaryColor", "opacity"];
+  const properties = ["noteAnimation", "playedNoteHighlight", "particleAnimation", "colorMode", "primaryColor", "secondaryColor", "opacity"];
   const values = Object.fromEntries(properties.map(property => [property, commonValue(styles, property)]));
   element("note-animation-input").value = values.noteAnimation ?? "";
+  element("played-note-highlight-input").value = values.playedNoteHighlight ?? "";
   element("particle-animation-input").value = values.particleAnimation ?? "";
   element("color-mode-input").value = values.colorMode ?? "";
   element("layer-color-primary").value = values.primaryColor ?? styles[0].primaryColor;
@@ -444,10 +449,27 @@ function bindControls() {
     element("bars-visible-value").value = `${bars} ${bars === 1 ? "bar" : "bars"}`;
     state.visualizer?.draw(currentPosition());
   };
-  for (const [id, key] of [["playhead-input", "playhead"], ["effects-input", "effects"], ["percussion-input", "percussion"]]) {
+  element("playhead-input").onchange = event => {
+    state.settings.playhead = event.target.checked;
+    element("playhead-customization").disabled = !event.target.checked;
+    state.visualizer?.draw(currentPosition());
+  };
+  element("playhead-color-input").oninput = event => { state.settings.playheadColor = event.target.value; state.visualizer?.draw(currentPosition()); };
+  for (const [id, key, outputId, suffix] of [
+    ["playhead-thickness-input", "playheadThickness", "playhead-thickness-value", ""],
+    ["playhead-glow-input", "playheadGlow", "playhead-glow-value", "%"],
+    ["playhead-opacity-input", "playheadOpacity", "playhead-opacity-value", "%"],
+  ]) {
+    element(id).oninput = event => {
+      state.settings[key] = Number(event.target.value);
+      element(outputId).value = `${event.target.value}${suffix}`;
+      state.visualizer?.draw(currentPosition());
+    };
+  }
+  for (const [id, key] of [["effects-input", "effects"], ["percussion-input", "percussion"]]) {
     element(id).onchange = event => { state.settings[key] = event.target.checked; state.visualizer?.draw(currentPosition()); };
   }
-  for (const [id, property] of [["note-animation-input", "noteAnimation"], ["particle-animation-input", "particleAnimation"], ["color-mode-input", "colorMode"]]) {
+  for (const [id, property] of [["note-animation-input", "noteAnimation"], ["played-note-highlight-input", "playedNoteHighlight"], ["particle-animation-input", "particleAnimation"], ["color-mode-input", "colorMode"]]) {
     element(id).onchange = event => applyLayerStyle(property, event.target.value);
   }
   element("layer-color-primary").oninput = event => applyLayerStyle("primaryColor", event.target.value);

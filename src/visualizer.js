@@ -10,6 +10,7 @@ export function createLayerStyle(index = 0) {
   const [primaryColor, secondaryColor] = PALETTE[index % PALETTE.length];
   return {
     noteAnimation: "bounce",
+    playedNoteHighlight: "constant",
     particleAnimation: "burst",
     colorMode: "gradient",
     primaryColor,
@@ -60,6 +61,11 @@ function spark(context, x, y, radius, color, opacity) {
   context.moveTo(x, y - radius); context.lineTo(x, y + radius);
   context.stroke();
   context.restore();
+}
+
+function colorWithAlpha(color, opacity) {
+  const alpha = Math.round(Math.max(0, Math.min(1, opacity)) * 255).toString(16).padStart(2, "0");
+  return /^#[\da-f]{6}$/i.test(color) ? `${color}${alpha}` : color;
 }
 
 export class Visualizer {
@@ -134,24 +140,47 @@ export class Visualizer {
     return { size: impact * (.66 + Math.abs(Math.sin(hitAge / this.project.ppq * Math.PI * 5.2)) * .34), offset: 0 };
   }
 
+  noteHighlightOpacity(note, tick, style = this.layerStyle(note.patternId)) {
+    if (tick < note.at || tick >= note.at + note.length || style.playedNoteHighlight === "none") return 0;
+    if (style.playedNoteHighlight === "pulse") {
+      const phase = (tick - note.at) / this.project.ppq * Math.PI * 4;
+      return .1 + (.5 + Math.sin(phase) * .5) * .34;
+    }
+    return .28;
+  }
+
+  playheadStyle(width) {
+    const thickness = Math.max(1, Math.min(12, Number(this.settings.playheadThickness) || 3));
+    return {
+      color: /^#[\da-f]{6}$/i.test(this.settings.playheadColor) ? this.settings.playheadColor : "#ff9d45",
+      thickness: thickness * width / 1080,
+      glow: Math.max(0, Math.min(1, Number(this.settings.playheadGlow ?? 55) / 100)),
+      opacity: Math.max(.1, Math.min(1, Number(this.settings.playheadOpacity ?? 100) / 100)),
+    };
+  }
+
   drawPlayhead(width, height, hitX) {
     const context = this.context;
+    const style = this.playheadStyle(width);
     const top = height * .06;
     const bottom = height * .94;
     const gradient = context.createLinearGradient(hitX, top, hitX, bottom);
-    gradient.addColorStop(0, "rgba(164,122,255,0)");
-    gradient.addColorStop(.08, "rgba(164,122,255,.72)");
-    gradient.addColorStop(.45, "rgba(255,120,174,.78)");
-    gradient.addColorStop(.85, "rgba(75,201,246,.72)");
-    gradient.addColorStop(1, "rgba(75,201,246,0)");
+    gradient.addColorStop(0, colorWithAlpha(style.color, 0));
+    gradient.addColorStop(.08, colorWithAlpha(style.color, .78));
+    gradient.addColorStop(.5, style.color);
+    gradient.addColorStop(.92, colorWithAlpha(style.color, .78));
+    gradient.addColorStop(1, colorWithAlpha(style.color, 0));
     context.strokeStyle = gradient;
     context.lineCap = "round";
-    context.globalAlpha = .14;
-    context.lineWidth = width * .012;
+    if (style.glow > 0) {
+      context.globalAlpha = style.opacity * style.glow * .34;
+      context.lineWidth = style.thickness * (1 + style.glow * 5.2);
+      context.beginPath(); context.moveTo(hitX, top); context.lineTo(hitX, bottom); context.stroke();
+    }
+    context.globalAlpha = style.opacity;
+    context.lineWidth = style.thickness;
     context.beginPath(); context.moveTo(hitX, top); context.lineTo(hitX, bottom); context.stroke();
     context.globalAlpha = 1;
-    context.lineWidth = Math.max(1, width * .0024);
-    context.beginPath(); context.moveTo(hitX, top); context.lineTo(hitX, bottom); context.stroke();
   }
 
   drawNote(note, tick, width, height, hitX, pixelsPerTick) {
@@ -165,10 +194,9 @@ export class Visualizer {
     const noteScale = this.settings.noteSize / 100;
     const step = this.isStep(note);
     const noteWidth = Math.max((step ? 13 : 20) * scale * Math.sqrt(noteScale), note.length * pixelsPerTick);
-    const hitAge = tick - note.at;
-    const impact = hitAge >= 0 ? Math.exp(-hitAge / (this.project.ppq * .19)) : 0;
     const bounce = motion.size;
     const sounding = note.at <= tick && note.at + note.length > tick;
+    const highlightOpacity = this.noteHighlightOpacity(note, tick, style);
     const fade = Math.min(1, Math.max(.18, 1 - Math.max(0, x - width * .78) / (width * .43)));
     const velocity = .72 + Math.min(note.velocity / 128, 1) * .24;
 
@@ -182,6 +210,7 @@ export class Visualizer {
         stepColor.addColorStop(1, light);
       }
       diamond(context, x, y, stepSize, stepColor, fade * velocity * style.opacity, note.channel === 8);
+      if (highlightOpacity > 0) diamond(context, x, y, stepSize * .58, "#ffffff", highlightOpacity * fade * style.opacity, true);
       return;
     }
 
@@ -194,9 +223,11 @@ export class Visualizer {
     context.globalAlpha = fade * velocity * style.opacity;
     context.fillStyle = gradient;
     rounded(context, x, y - noteHeight / 2, noteWidth, noteHeight, 8 * scale);
-    if (sounding) {
-      context.globalAlpha = (.33 + impact * .31) * style.opacity;
+    if (highlightOpacity > 0) {
+      context.globalAlpha = highlightOpacity * fade * style.opacity;
       context.fillStyle = "#ffffff";
+      rounded(context, x, y - noteHeight / 2, noteWidth, noteHeight, 8 * scale);
+      context.globalAlpha = Math.min(.72, highlightOpacity * 1.55) * fade * style.opacity;
       rounded(context, x + 2 * scale, y - noteHeight / 2 + 2 * scale, Math.max(1, noteWidth - 4 * scale), 2.1 * scale, scale);
     }
     context.globalAlpha = 1;
