@@ -17,7 +17,7 @@ A dependency-free, browser-native FL Studio project visualizer, MIDI exporter, a
 ## Run locally
 
 ```bash
-git clone <your-private-repository-url>
+git clone https://github.com/cyroz1/rollplay.git
 cd rollplay
 npm run dev
 ```
