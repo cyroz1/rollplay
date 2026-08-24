@@ -71,10 +71,31 @@ export class Visualizer {
     this.project = project;
     this.settings = settings;
     this.patternColors = new Map(project.patterns.map((pattern, index) => [pattern.id, PALETTE[index % PALETTE.length]]));
+    this.stepLanes = new Map();
+  }
+
+  isStep(note) {
+    if (!this.settings.percussion) return false;
+    const mode = this.settings.trackModes?.get(note.patternId);
+    if (mode) return mode === "step";
+    return note.channel >= 8 && note.channel !== 9;
+  }
+
+  refreshStepLanes() {
+    this.stepLanes.clear();
+    if (!this.settings.trackModes) return;
+    for (const pattern of this.project.patterns) {
+      if (this.settings.trackModes.get(pattern.id) === "step") this.stepLanes.set(pattern.id, this.stepLanes.size);
+    }
   }
 
   noteY(note, height) {
-    if (note.channel >= 8 && note.channel !== 9) return height * .755 + (note.channel - 8) * height * .0255;
+    if (this.isStep(note)) {
+      const lane = this.stepLanes.get(note.patternId) ?? Math.max(0, note.channel - 8);
+      const laneCount = Math.max(1, this.stepLanes.size);
+      const laneSpacing = Math.min(height * .0255, height * .17 / laneCount);
+      return height * .755 + lane * laneSpacing;
+    }
     const top = height * .106;
     const bottom = height * .688;
     const mapped = bottom - (note.key - 37) / 59 * (bottom - top);
@@ -112,7 +133,8 @@ export class Visualizer {
     const y = this.noteY(note, height);
     const scale = width / 1080;
     const noteScale = this.settings.noteSize / 100;
-    const noteWidth = Math.max((note.channel >= 8 ? 13 : 20) * scale * Math.sqrt(noteScale), note.length * pixelsPerTick);
+    const step = this.isStep(note);
+    const noteWidth = Math.max((step ? 13 : 20) * scale * Math.sqrt(noteScale), note.length * pixelsPerTick);
     const hitAge = tick - note.at;
     const impact = hitAge >= 0 ? Math.exp(-hitAge / (this.project.ppq * .19)) : 0;
     const bounce = this.settings.effects ? impact * (.66 + Math.abs(Math.sin(hitAge / this.project.ppq * Math.PI * 5.2)) * .34) : 0;
@@ -120,7 +142,7 @@ export class Visualizer {
     const fade = Math.min(1, Math.max(.18, 1 - Math.max(0, x - width * .78) / (width * .43)));
     const velocity = .72 + Math.min(note.velocity / 128, 1) * .24;
 
-    if (this.settings.percussion && note.channel >= 8 && note.channel !== 9) {
+    if (step) {
       const baseSize = (note.channel === 8 ? 10 : note.channel === 10 ? 7 : 8.2) * scale * noteScale;
       diamond(context, x, y, baseSize * (1 + bounce * 1.05 + (sounding ? .13 : 0)), main, fade * velocity, note.channel === 8);
       return;
@@ -181,7 +203,7 @@ export class Visualizer {
     context.beginPath(); context.arc(hitX, y, (10 + eased * 17) * scale, 0, Math.PI * 2); context.fill();
     context.globalAlpha = 1;
 
-    if (this.settings.percussion && note.channel >= 8 && note.channel !== 9) {
+    if (this.isStep(note)) {
       diamond(context, hitX, y, (12 + eased * 38) * scale, main, fade * .77);
       diamond(context, hitX, y, (8 + eased * 24) * scale, light, fade * .66);
       this.drawParticles(note, y, eased, fade, main, light, 4, 32, hitX, scale);
@@ -211,6 +233,7 @@ export class Visualizer {
     const height = canvas.height;
     const tick = seconds * project.ppq * project.tempo / 60;
     const hitX = width * .41;
+    this.refreshStepLanes();
     const pixelsPerTick = 1.12 * width / 1080;
     const shownBefore = Math.ceil((hitX + width * .11) / pixelsPerTick);
     const shownAfter = Math.ceil((width - hitX + width * .2) / pixelsPerTick);

@@ -37,3 +37,30 @@ test("multiplexes browser-encoded H.264 samples into ISO MP4 boxes", async () =>
   assert.equal(blob.type, "video/mp4");
   for (const required of ["ftyp", "mdat", "moov", "trak", "avc1", "avcC", "stss"]) assert.ok(text.includes(required), `${required} box is missing.`);
 });
+
+test("tracks can independently switch between melody and step-percussion rendering", async context => {
+  let createCanvas;
+  try { ({ createCanvas } = createRequire(import.meta.url)("@napi-rs/canvas")); }
+  catch { context.skip("Optional native canvas package is not installed."); return; }
+  let fixture;
+  try { fixture = await readFile(new URL("../../upload/key.flp", import.meta.url)); }
+  catch { context.skip("Private FLP fixture is not included in the repository."); return; }
+
+  const project = parseFlp(fixture);
+  const melody = project.notes.find(note => note.channel === 0);
+  const drums = project.notes.find(note => note.channel === 8);
+  const trackModes = new Map(project.patterns.map(pattern => [pattern.id, "melody"]));
+  const settings = { background: "#ffffff", noteSize: 145, playhead: true, effects: true, percussion: true, trackModes, enabledPatterns: new Set(project.patterns.map(pattern => pattern.id)) };
+  const visualizer = new Visualizer(createCanvas(1080, 1920), project, settings);
+
+  assert.equal(visualizer.isStep(melody), false);
+  assert.equal(visualizer.isStep(drums), false, "A drum-channel track can be forced into melody mode.");
+  assert.ok(visualizer.noteY(drums, 1920) < 1920 * .74);
+
+  trackModes.set(melody.patternId, "step");
+  visualizer.refreshStepLanes();
+  assert.equal(visualizer.isStep(melody), true, "A melodic-channel track can be forced into step mode.");
+  assert.ok(visualizer.noteY(melody, 1920) >= 1920 * .755);
+  assert.equal(visualizer.isStep(drums), false, "Changing one track must not change another.");
+  visualizer.draw(17);
+});

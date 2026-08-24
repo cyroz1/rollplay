@@ -26,6 +26,7 @@ const state = {
     fps: 60,
     maxSize: 20,
     enabledPatterns: new Set(),
+    trackModes: new Map(),
   },
 };
 
@@ -111,6 +112,25 @@ function refreshPatterns() {
     name.className = "pattern-name";
     name.textContent = pattern.name;
     name.title = pattern.name;
+    const mode = document.createElement("button");
+    mode.className = "pattern-mode";
+    const updateModeButton = () => {
+      const isStep = state.settings.trackModes.get(pattern.id) === "step";
+      mode.classList.toggle("step-mode", isStep);
+      mode.setAttribute("aria-label", `${pattern.name}: ${isStep ? "step percussion" : "melody"} rendering. Click to switch.`);
+      mode.title = isStep ? "Step percussion · click for melody" : "Melody · click for step percussion";
+      mode.innerHTML = isStep
+        ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="m12 3 9 9-9 9-9-9 9-9Z"/><path d="M12 8v8m-4-4h8"/></svg>'
+        : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l10-2v13"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/></svg>';
+    };
+    mode.onclick = () => {
+      const nextMode = state.settings.trackModes.get(pattern.id) === "step" ? "melody" : "step";
+      state.settings.trackModes.set(pattern.id, nextMode);
+      updateModeButton();
+      state.visualizer.draw(currentPosition());
+      notify(`${pattern.name}: ${nextMode === "step" ? "step percussion" : "melody"} rendering`);
+    };
+    updateModeButton();
     const toggle = document.createElement("button");
     toggle.className = "pattern-toggle";
     toggle.setAttribute("aria-label", `Toggle ${pattern.name}`);
@@ -121,7 +141,7 @@ function refreshPatterns() {
       row.classList.toggle("muted-pattern", !state.settings.enabledPatterns.has(pattern.id));
       state.visualizer.draw(currentPosition());
     };
-    row.append(swatch, name, toggle);
+    row.append(swatch, name, mode, toggle);
     container.append(row);
   }
 }
@@ -134,6 +154,10 @@ async function loadFlp(file) {
     state.project = project;
     state.fileName = file.name.replace(/\.flp$/i, "");
     state.settings.enabledPatterns = new Set(project.patterns.map(pattern => pattern.id));
+    state.settings.trackModes = new Map(project.patterns.map(pattern => {
+      const percussionNotes = pattern.notes.filter(note => note.channel >= 8 && note.channel !== 9).length;
+      return [pattern.id, percussionNotes > pattern.notes.length / 2 ? "step" : "melody"];
+    }));
     state.visualizer = new Visualizer(element("preview"), project, state.settings);
     element("flp-label").textContent = file.name;
     element("tempo-value").textContent = `${project.tempo} BPM`;
