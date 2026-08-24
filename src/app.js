@@ -129,6 +129,13 @@ function commonValue(styles, property) {
   return styles.every(style => style[property] === styles[0][property]) ? styles[0][property] : null;
 }
 
+function formatOctaveOffset(value) {
+  const offset = Number(value) || 0;
+  if (offset === 0) return "0 octaves";
+  const amount = Math.abs(offset);
+  return `${offset > 0 ? "+" : "−"}${amount} ${amount === 1 ? "octave" : "octaves"}`;
+}
+
 function refreshLayerStyleControls() {
   const selected = selectedPatternIds();
   const styles = selected.map(layerStyle);
@@ -137,7 +144,7 @@ function refreshLayerStyleControls() {
   element("selection-count").textContent = selected.length ? `${selected.length} selected` : "None selected";
   if (!styles.length) return;
 
-  const properties = ["noteAnimation", "playedNoteHighlight", "particleAnimation", "colorMode", "primaryColor", "secondaryColor", "opacity"];
+  const properties = ["noteAnimation", "playedNoteHighlight", "particleAnimation", "colorMode", "primaryColor", "secondaryColor", "opacity", "octaveOffset"];
   const values = Object.fromEntries(properties.map(property => [property, commonValue(styles, property)]));
   element("note-animation-input").value = values.noteAnimation ?? "";
   element("played-note-highlight-input").value = values.playedNoteHighlight ?? "";
@@ -145,6 +152,9 @@ function refreshLayerStyleControls() {
   element("color-mode-input").value = values.colorMode ?? "";
   element("layer-color-primary").value = values.primaryColor ?? styles[0].primaryColor;
   element("layer-color-secondary").value = values.secondaryColor ?? styles[0].secondaryColor;
+  const octaveOffset = values.octaveOffset ?? styles[0].octaveOffset ?? 0;
+  element("layer-octave-offset-input").value = String(octaveOffset);
+  element("layer-octave-offset-value").value = values.octaveOffset == null ? "Mixed" : formatOctaveOffset(octaveOffset);
   const transparency = Math.round((1 - (values.opacity ?? styles[0].opacity)) * 100);
   element("layer-opacity-input").value = String(transparency);
   element("layer-opacity-value").value = values.opacity == null ? "Mixed" : `${transparency}%`;
@@ -405,7 +415,7 @@ function applyFrameSettings(resolution, preset) {
   element("frame-preset-input").value = preset;
   element("zoom-axis-label").textContent = preset === "landscape" ? "Vertical zoom" : "Horizontal zoom";
   const offsetAxis = preset === "landscape" ? "Vertical" : "Horizontal";
-  const offsetDirection = preset === "landscape" ? "− up · + down" : "− left · + right";
+  const offsetDirection = preset === "landscape" ? "− bottom · + top" : "− left · + right";
   element("playhead-offset-label").textContent = `${offsetAxis} offset`;
   element("playhead-offset-input").setAttribute("aria-label", `${offsetAxis} playhead offset`);
   element("playhead-offset-hint").textContent = offsetDirection;
@@ -490,6 +500,11 @@ function bindControls() {
   for (const [id, property] of [["note-animation-input", "noteAnimation"], ["played-note-highlight-input", "playedNoteHighlight"], ["particle-animation-input", "particleAnimation"], ["color-mode-input", "colorMode"]]) {
     element(id).onchange = event => applyLayerStyle(property, event.target.value);
   }
+  element("layer-octave-offset-input").oninput = event => {
+    const rawOffset = Number(event.target.value);
+    const offset = Number.isFinite(rawOffset) ? Math.max(-4, Math.min(4, Math.round(rawOffset))) : 0;
+    applyLayerStyle("octaveOffset", offset);
+  };
   element("layer-color-primary").oninput = event => applyLayerStyle("primaryColor", event.target.value);
   element("layer-color-secondary").oninput = event => applyLayerStyle("secondaryColor", event.target.value);
   element("apply-layer-gradient").onclick = applyLayerColorGradient;

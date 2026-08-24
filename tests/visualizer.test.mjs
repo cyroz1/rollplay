@@ -33,6 +33,12 @@ test("layer styles support independent colors, opacity, and note animations", ()
   assert.deepEqual(visualizer.color(note), ["#123456", "#123456"], "Solid layers should use the primary color at both gradient stops.");
   assert.equal(visualizer.layerStyle(1).opacity, .35);
   assert.equal(visualizer.layerStyle(1).particleAnimation, "float");
+  assert.equal(visualizer.layerStyle(1).octaveOffset, 0);
+  const originalY = visualizer.noteY(note, 1920);
+  settings.layerStyles.get(1).octaveOffset = 1;
+  assert.ok(visualizer.noteY(note, 1920) < originalY, "Positive octave offsets should move melodic notes upward.");
+  settings.layerStyles.get(1).octaveOffset = -1;
+  assert.ok(visualizer.noteY(note, 1920) > originalY, "Negative octave offsets should move melodic notes downward.");
   assert.equal(visualizer.noteHighlightOpacity(note, 24), .28);
   assert.notEqual(visualizer.noteMotion(note, 24, 1).offset, 0, "Wave animation should offset a recently hit note.");
 
@@ -48,23 +54,42 @@ test("layer styles support independent colors, opacity, and note animations", ()
   Object.assign(settings, { playheadColor: "#123456", playheadThickness: 20, playheadGlow: 125, playheadOpacity: 5 });
   assert.deepEqual(visualizer.playheadStyle(1080), { color: "#123456", thickness: 12, glow: 1, opacity: .1 });
   settings.playheadOffset = 12;
-  assert.equal(visualizer.playheadPosition(1080), 1080 * .53, "Portrait offsets should move the playhead right for positive values.");
+  assert.equal(visualizer.playheadPosition(1080), 1080 * .56, "Portrait offsets should move the playhead right for positive values.");
+  settings.playheadOffset = 0;
+  assert.equal(visualizer.playheadPosition(1080), 1080 * .5, "Zero offset should place the portrait playhead in the frame center.");
   settings.playheadOffset = -100;
   assert.equal(visualizer.playheadPosition(1080), 0, "Portrait offsets should reach the left frame edge.");
   settings.playheadOffset = 100;
   assert.equal(visualizer.playheadPosition(1080), 1080, "Portrait offsets should reach the right frame edge.");
+  settings.playheadOffset = -150;
+  assert.equal(visualizer.playheadPosition(1080), 0, "Portrait offsets should clamp at the left frame edge.");
+  settings.playheadOffset = 150;
+  assert.equal(visualizer.playheadPosition(1080), 1080, "Portrait offsets should clamp at the right frame edge.");
   settings.framePreset = "landscape";
-  settings.playheadOffset = 100;
-  assert.equal(visualizer.playheadPosition(1080), 0, "Landscape offsets should reach the lower frame edge after rotation.");
   settings.playheadOffset = -100;
-  assert.equal(visualizer.playheadPosition(1080), 1080, "Landscape offsets should reach the upper frame edge after rotation.");
+  assert.equal(visualizer.playheadPosition(1080), 0, "Landscape negative offsets should reach the lower frame edge after rotation.");
+  settings.playheadOffset = 0;
+  assert.equal(visualizer.playheadPosition(1080), 1080 * .5, "Zero offset should place the landscape playhead in the frame center.");
+  settings.playheadOffset = 100;
+  assert.equal(visualizer.playheadPosition(1080), 1080, "Landscape positive offsets should reach the upper frame edge after rotation.");
   settings.playheadOffset = 12;
-  assert.ok(Math.abs(visualizer.playheadPosition(1080) - 1080 * .04) < 1e-9, "Landscape offsets should move the playhead down for positive values.");
+  assert.ok(Math.abs(visualizer.playheadPosition(1080) - 1080 * .56) < 1e-9, "Landscape offsets should move the playhead toward the upper edge for positive values.");
 
   settings.layerStyles.get(1).colorMode = "gradient";
   settings.layerStyles.get(1).noteAnimation = "none";
   assert.deepEqual(visualizer.color(note), ["#123456", "#abcdef"]);
   assert.deepEqual(visualizer.noteMotion(note, 24, 1), { size: 0, offset: 0 });
+});
+
+test("new layers default to a brightness pulse highlight", () => {
+  assert.equal(createLayerStyle(0).playedNoteHighlight, "pulse");
+  assert.equal(createLayerStyle(0).octaveOffset, 0);
+});
+
+test("fullscreen preview contains the canvas without stretching", async () => {
+  const styles = await readFile(new URL("../styles.css", import.meta.url), "utf8");
+  assert.match(styles, /\.preview-frame:fullscreen\s*\{[^}]*width:\s*100vw;[^}]*height:\s*100vh;[^}]*aspect-ratio:\s*auto;/s);
+  assert.match(styles, /\.preview-frame:fullscreen\s+canvas\s*\{[^}]*width:\s*auto;[^}]*height:\s*auto;[^}]*max-width:\s*100%;[^}]*max-height:\s*100%;[^}]*object-fit:\s*contain;/s);
 });
 
 test("renders actual FLP notes and the playhead to a real canvas", async context => {
@@ -79,7 +104,7 @@ test("renders actual FLP notes and the playhead to a real canvas", async context
   const settings = { background: "#ffffff", noteSize: 145, playhead: true, effects: true, percussion: true, enabledPatterns: new Set(project.patterns.map(pattern => pattern.id)) };
   const visualizer = new Visualizer(canvas, project, settings);
   visualizer.draw(17);
-  const pixel = canvas.getContext("2d").getImageData(Math.round(1080 * .41), 1100, 1, 1).data;
+  const pixel = canvas.getContext("2d").getImageData(Math.round(1080 * .5), 1100, 1, 1).data;
   assert.ok(pixel[0] < 255 || pixel[1] < 255 || pixel[2] < 255, "The vertical playhead should color the otherwise white background.");
 });
 
@@ -144,7 +169,7 @@ test("track layer order determines which overlapping notes render on top", async
     enabledPatterns: new Set([1, 2]), trackModes: new Map([[1, "melody"], [2, "melody"]]), layerOrder: [1, 2],
   };
   const visualizer = new Visualizer(canvas, project, settings);
-  const sampleX = Math.round(1080 * .41 + 35);
+  const sampleX = Math.round(1080 * .5 + 35);
   const sampleY = Math.round(visualizer.noteY(project.notes[0], 1920));
 
   visualizer.draw(0);
@@ -186,7 +211,7 @@ test("horizontal zoom changes the visible range from one to eight bars", async c
   visualizer.draw(0);
 });
 
-test("landscape preset drops notes toward a horizontal playhead near the bottom", async context => {
+test("landscape preset drops notes toward a centered horizontal playhead", async context => {
   let createCanvas;
   try { ({ createCanvas } = createRequire(import.meta.url)("@napi-rs/canvas")); }
   catch { context.skip("Optional native canvas package is not installed."); return; }
@@ -204,14 +229,14 @@ test("landscape preset drops notes toward a horizontal playhead near the bottom"
   };
   const visualizer = new Visualizer(canvas, project, settings);
   const context2d = canvas.getContext("2d");
-  const playheadY = Math.round(1080 * .84);
+  const playheadY = Math.round(1080 * .5);
   const noteX = Math.round(visualizer.noteY(note, 1920));
   const pixelsPerTick = visualizer.pixelsPerTick(1080);
   const noteCenterY = Math.round(playheadY - (note.at + note.length / 2) * pixelsPerTick);
 
   visualizer.draw(0);
   const playhead = context2d.getImageData(960, playheadY, 1, 1).data;
-  assert.ok(playhead[0] < 255 || playhead[1] < 255 || playhead[2] < 255, "A horizontal playhead should appear near the bottom.");
+  assert.ok(playhead[0] < 255 || playhead[1] < 255 || playhead[2] < 255, "A horizontal playhead should appear in the centered default position.");
   const incoming = context2d.getImageData(noteX, noteCenterY, 1, 1).data;
   assert.ok(incoming[1] < 250, "Upcoming notes should appear above the playhead.");
 

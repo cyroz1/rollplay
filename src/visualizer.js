@@ -10,12 +10,13 @@ export function createLayerStyle(index = 0) {
   const [primaryColor, secondaryColor] = PALETTE[index % PALETTE.length];
   return {
     noteAnimation: "bounce",
-    playedNoteHighlight: "constant",
+    playedNoteHighlight: "pulse",
     particleAnimation: "burst",
     colorMode: "gradient",
     primaryColor,
     secondaryColor,
     opacity: 1,
+    octaveOffset: 0,
   };
 }
 
@@ -106,9 +107,13 @@ export class Visualizer {
       const laneSpacing = Math.min(height * .0255, height * .17 / laneCount);
       return height * .755 + lane * laneSpacing;
     }
+    const style = this.layerStyle(note.patternId);
+    const rawOctaveOffset = Number(style.octaveOffset ?? 0);
+    const octaveOffset = Number.isFinite(rawOctaveOffset) ? Math.max(-4, Math.min(4, rawOctaveOffset)) : 0;
+    const key = note.key + octaveOffset * 12;
     const top = height * .106;
     const bottom = height * .688;
-    const mapped = bottom - (note.key - 37) / 59 * (bottom - top);
+    const mapped = bottom - (key - 37) / 59 * (bottom - top);
     return Math.max(height * .08, Math.min(height * .731, mapped + ((note.channel % 4) - 1.5) * height * .0029));
   }
 
@@ -163,9 +168,8 @@ export class Visualizer {
 
   playheadPosition(width, landscape = this.settings.framePreset === "landscape") {
     const rawOffset = Number(this.settings.playheadOffset ?? 0);
-    const offset = (Number.isFinite(rawOffset) ? Math.max(-100, Math.min(100, rawOffset)) : 0) / 100;
-    const basePosition = landscape ? .16 : .41;
-    const position = basePosition + (landscape ? -offset : offset);
+    const offset = Number.isFinite(rawOffset) ? Math.max(-100, Math.min(100, rawOffset)) : 0;
+    const position = .5 + offset / 200;
     return width * Math.max(0, Math.min(1, position));
   }
 
