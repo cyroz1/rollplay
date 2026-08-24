@@ -2,6 +2,7 @@ import { parseFlp } from "./flp-parser.js";
 import { createMidi } from "./midi-export.js";
 import { Visualizer, createLayerStyle } from "./visualizer.js";
 import { renderMp4 } from "./exporter.js";
+import { createColorRamp } from "./color-utils.js";
 
 const element = id => document.getElementById(id);
 const state = {
@@ -142,6 +143,14 @@ function refreshLayerStyleControls() {
   element("layer-opacity-input").value = String(transparency);
   element("layer-opacity-value").value = values.opacity == null ? "Mixed" : `${transparency}%`;
   element("gradient-color-row").classList.toggle("hidden", values.colorMode === "solid");
+  const layerGradientControls = element("layer-gradient-controls");
+  layerGradientControls.classList.toggle("hidden", selected.length < 2);
+  const selectionKey = selected.join(",");
+  if (selected.length > 1 && layerGradientControls.dataset.selection !== selectionKey) {
+    element("layer-gradient-start").value = styles[0].primaryColor;
+    element("layer-gradient-end").value = styles.at(-1).primaryColor;
+    layerGradientControls.dataset.selection = selectionKey;
+  }
   element("mixed-hint").classList.toggle("hidden", !Object.values(values).some(value => value == null));
 }
 
@@ -175,6 +184,22 @@ function applyLayerStyle(property, value) {
   refreshPatterns();
   refreshLayerStyleControls();
   state.visualizer?.draw(currentPosition());
+}
+
+function applyLayerColorGradient() {
+  const selected = selectedPatternIds();
+  if (selected.length < 2) return;
+  const colors = createColorRamp(element("layer-gradient-start").value, element("layer-gradient-end").value, selected.length);
+  selected.forEach((patternId, index) => {
+    const style = layerStyle(patternId);
+    style.colorMode = "solid";
+    style.primaryColor = colors[index];
+    style.secondaryColor = colors[index];
+  });
+  refreshPatterns();
+  refreshLayerStyleControls();
+  state.visualizer?.draw(currentPosition());
+  notify(`Applied a color gradient across ${selected.length} layers.`);
 }
 
 function refreshPatterns() {
@@ -427,6 +452,7 @@ function bindControls() {
   }
   element("layer-color-primary").oninput = event => applyLayerStyle("primaryColor", event.target.value);
   element("layer-color-secondary").oninput = event => applyLayerStyle("secondaryColor", event.target.value);
+  element("apply-layer-gradient").onclick = applyLayerColorGradient;
   element("layer-opacity-input").oninput = event => applyLayerStyle("opacity", 1 - Number(event.target.value) / 100);
   element("resolution-input").onchange = event => {
     const [width, height] = event.target.value.split("x").map(Number);

@@ -49,20 +49,6 @@ function diamond(context, x, y, size, color, opacity, filled = false) {
   context.restore();
 }
 
-function heart(context, x, y, size, color, opacity, outline = false) {
-  context.save();
-  context.globalAlpha = opacity;
-  context.translate(x, y);
-  context.beginPath();
-  context.moveTo(0, size * .77);
-  context.bezierCurveTo(-size * 1.06, size * .06, -size * .83, -size * .72, 0, -size * .29);
-  context.bezierCurveTo(size * .83, -size * .72, size * 1.06, size * .06, 0, size * .77);
-  context.closePath();
-  if (outline) { context.strokeStyle = color; context.lineWidth = Math.max(1.5, size * .13); context.stroke(); }
-  else { context.fillStyle = color; context.fill(); }
-  context.restore();
-}
-
 function spark(context, x, y, radius, color, opacity) {
   context.save();
   context.globalAlpha = opacity;
@@ -214,9 +200,6 @@ export class Visualizer {
       rounded(context, x + 2 * scale, y - noteHeight / 2 + 2 * scale, Math.max(1, noteWidth - 4 * scale), 2.1 * scale, scale);
     }
     context.globalAlpha = 1;
-    if ((note.channel === 4 || note.channel === 5) && noteWidth >= 40 * scale) {
-      heart(context, x + noteWidth - 12 * scale, y, 7 * scale * noteScale * (1 + bounce * .64), main, Math.min(1, fade * .86 * style.opacity));
-    }
   }
 
   drawParticles(note, y, eased, fade, main, light, count, reach, hitX, scale, animation = "burst", opacity = 1) {
@@ -270,12 +253,6 @@ export class Visualizer {
       diamond(context, hitX, y, (12 + eased * 38) * scale, main, fade * .77 * style.opacity);
       diamond(context, hitX, y, (8 + eased * 24) * scale, light, fade * .66 * style.opacity);
       this.drawParticles(note, y, eased, fade, main, light, 4, 32, hitX, scale, style.particleAnimation, style.opacity);
-    } else if (note.channel === 4 || note.channel === 5) {
-      const lift = eased * 42 * scale;
-      const sway = Math.sin(life * Math.PI * 1.8 + note.key) * 12 * scale;
-      heart(context, hitX + sway, y - lift, (18 + eased * 14) * scale, main, fade * .93 * style.opacity);
-      heart(context, hitX + (25 + eased * 25) * scale, y - (19 + eased * 38) * scale, 10 * scale, light, fade * .84 * style.opacity, note.channel === 5);
-      this.drawParticles(note, y, eased, fade, main, light, 4, 37, hitX, scale, style.particleAnimation, style.opacity);
     } else {
       context.globalAlpha = fade * .71 * style.opacity;
       context.strokeStyle = main;

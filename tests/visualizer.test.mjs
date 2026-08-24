@@ -5,6 +5,17 @@ import { createRequire } from "node:module";
 import { parseFlp } from "../src/flp-parser.js";
 import { Visualizer, createLayerStyle } from "../src/visualizer.js";
 import { muxMp4 } from "../src/mp4-muxer.js";
+import { createColorRamp } from "../src/color-utils.js";
+
+test("creates an inclusive color gradient across selected layers", () => {
+  assert.deepEqual(createColorRamp("#ff0000", "#0000ff", 3), ["#ff0000", "#800080", "#0000ff"]);
+  assert.deepEqual(createColorRamp("#123456", "#abcdef", 1), ["#123456"]);
+});
+
+test("note and particle rendering contains no heart icons", async () => {
+  const source = await readFile(new URL("../src/visualizer.js", import.meta.url), "utf8");
+  assert.doesNotMatch(source, /\bheart\s*\(/i);
+});
 
 test("layer styles support independent colors, opacity, and note animations", () => {
   const note = { at: 0, length: 96, key: 60, channel: 0, velocity: 127, patternId: 1 };
