@@ -3,8 +3,32 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { parseFlp } from "../src/flp-parser.js";
-import { Visualizer } from "../src/visualizer.js";
+import { Visualizer, createLayerStyle } from "../src/visualizer.js";
 import { muxMp4 } from "../src/mp4-muxer.js";
+
+test("layer styles support independent colors, opacity, and note animations", () => {
+  const note = { at: 0, length: 96, key: 60, channel: 0, velocity: 127, patternId: 1 };
+  const project = { tempo: 120, ppq: 96, patterns: [{ id: 1, name: "Lead", notes: [note] }], notes: [note] };
+  const settings = {
+    effects: true,
+    layerStyles: new Map([[1, {
+      ...createLayerStyle(0), colorMode: "solid", primaryColor: "#123456", secondaryColor: "#abcdef",
+      opacity: .35, noteAnimation: "wave", particleAnimation: "float",
+    }]]),
+  };
+  const canvas = { width: 1080, height: 1920, getContext: () => ({}) };
+  const visualizer = new Visualizer(canvas, project, settings);
+
+  assert.deepEqual(visualizer.color(note), ["#123456", "#123456"], "Solid layers should use the primary color at both gradient stops.");
+  assert.equal(visualizer.layerStyle(1).opacity, .35);
+  assert.equal(visualizer.layerStyle(1).particleAnimation, "float");
+  assert.notEqual(visualizer.noteMotion(note, 24, 1).offset, 0, "Wave animation should offset a recently hit note.");
+
+  settings.layerStyles.get(1).colorMode = "gradient";
+  settings.layerStyles.get(1).noteAnimation = "none";
+  assert.deepEqual(visualizer.color(note), ["#123456", "#abcdef"]);
+  assert.deepEqual(visualizer.noteMotion(note, 24, 1), { size: 0, offset: 0 });
+});
 
 test("renders actual FLP notes and the playhead to a real canvas", async context => {
   let createCanvas;

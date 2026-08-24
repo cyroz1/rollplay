@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#141418" />
+    <meta name="theme-color" content="#3f4b52" />
     <meta name="description" content="Turn FL Studio projects into colorful MIDI visualizers and render MP4 videos in your browser." />
     <title>ROLLPLAY — FLP Visualizer</title>
     <link rel="stylesheet" href="styles.css" />
@@ -43,7 +43,10 @@
         </section>
 
         <section class="rail-section patterns-section">
-          <h2>PATTERNS</h2>
+          <div class="section-heading">
+            <h2>PATTERNS</h2>
+            <span class="selection-actions"><button id="select-all-patterns" type="button" disabled>Select all</button><button id="clear-pattern-selection" type="button" disabled>Clear</button></span>
+          </div>
           <div class="pattern-list" id="pattern-list"><p class="muted empty-patterns">Load a project to see its patterns.</p></div>
         </section>
       </aside>
@@ -72,6 +75,23 @@
           <label class="control-row"><span>Playhead</span><input id="playhead-input" class="switch" type="checkbox" checked /></label>
           <label class="control-row"><span>Hit effects</span><input id="effects-input" class="switch" type="checkbox" checked /></label>
           <label class="control-row"><span>Percussion shapes</span><input id="percussion-input" class="switch" type="checkbox" checked /></label>
+        </section>
+
+        <section class="rail-section layer-style-section" id="layer-style-section">
+          <div class="section-heading">
+            <h2>LAYER STYLE</h2>
+            <span class="selection-count" id="selection-count">None selected</span>
+          </div>
+          <p class="muted layer-style-empty" id="layer-style-empty">Select a pattern to edit its animation and appearance.</p>
+          <fieldset class="layer-style-controls" id="layer-style-controls" disabled>
+            <p class="mixed-hint hidden" id="mixed-hint">Mixed values · changes apply to every selected layer.</p>
+            <label class="stacked-control"><span>Note animation</span><select id="note-animation-input"><option value="" disabled>Mixed</option><option value="none">None</option><option value="pulse">Pulse</option><option value="bounce">Bounce</option><option value="wave">Wave</option></select></label>
+            <label class="stacked-control"><span>Particle animation</span><select id="particle-animation-input"><option value="" disabled>Mixed</option><option value="none">None</option><option value="burst">Burst</option><option value="float">Float</option><option value="orbit">Orbit</option></select></label>
+            <label class="stacked-control"><span>Color fill</span><select id="color-mode-input"><option value="" disabled>Mixed</option><option value="solid">Solid</option><option value="gradient">Gradient</option></select></label>
+            <label class="control-row"><span>Primary color</span><input id="layer-color-primary" type="color" value="#ff78ae" aria-label="Selected layer primary color" /></label>
+            <label class="control-row gradient-color-row" id="gradient-color-row"><span>Gradient color</span><input id="layer-color-secondary" type="color" value="#ffb7d3" aria-label="Selected layer gradient color" /></label>
+            <label class="stacked-control"><span>Transparency <output id="layer-opacity-value">0%</output></span><input id="layer-opacity-input" type="range" min="0" max="100" step="1" value="0" aria-label="Selected layer transparency" /></label>
+          </fieldset>
         </section>
 
         <section class="rail-section export-section" id="export-section">

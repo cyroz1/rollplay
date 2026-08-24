@@ -1,6 +1,6 @@
 import { parseFlp } from "./flp-parser.js";
 import { createMidi } from "./midi-export.js";
-import { Visualizer, PALETTE } from "./visualizer.js";
+import { Visualizer, createLayerStyle } from "./visualizer.js";
 import { renderMp4 } from "./exporter.js";
 
 const element = id => document.getElementById(id);
@@ -16,6 +16,8 @@ const state = {
   startedPosition: 0,
   fileName: "rollplay",
   rendering: false,
+  selectedPatternIds: new Set(),
+  lastSelectedPatternId: null,
   settings: {
     background: "#ffffff",
     noteSize: 145,
@@ -29,6 +31,7 @@ const state = {
     maxSize: 20,
     enabledPatterns: new Set(),
     trackModes: new Map(),
+    layerStyles: new Map(),
     layerOrder: [],
   },
 };
@@ -101,15 +104,88 @@ async function setPlaying(playing) {
   element("play-button").setAttribute("aria-label", playing ? "Pause" : "Play");
 }
 
+function layerStyle(patternId) {
+  let style = state.settings.layerStyles.get(patternId);
+  if (!style) {
+    const colorIndex = state.project?.patterns.findIndex(pattern => pattern.id === patternId) ?? 0;
+    style = createLayerStyle(Math.max(0, colorIndex));
+    state.settings.layerStyles.set(patternId, style);
+  }
+  return style;
+}
+
+function selectedPatternIds() {
+  return state.settings.layerOrder.filter(patternId => state.selectedPatternIds.has(patternId));
+}
+
+function commonValue(styles, property) {
+  if (!styles.length) return null;
+  return styles.every(style => style[property] === styles[0][property]) ? styles[0][property] : null;
+}
+
+function refreshLayerStyleControls() {
+  const selected = selectedPatternIds();
+  const styles = selected.map(layerStyle);
+  element("layer-style-controls").disabled = selected.length === 0;
+  element("layer-style-empty").classList.toggle("hidden", selected.length > 0);
+  element("selection-count").textContent = selected.length ? `${selected.length} selected` : "None selected";
+  if (!styles.length) return;
+
+  const properties = ["noteAnimation", "particleAnimation", "colorMode", "primaryColor", "secondaryColor", "opacity"];
+  const values = Object.fromEntries(properties.map(property => [property, commonValue(styles, property)]));
+  element("note-animation-input").value = values.noteAnimation ?? "";
+  element("particle-animation-input").value = values.particleAnimation ?? "";
+  element("color-mode-input").value = values.colorMode ?? "";
+  element("layer-color-primary").value = values.primaryColor ?? styles[0].primaryColor;
+  element("layer-color-secondary").value = values.secondaryColor ?? styles[0].secondaryColor;
+  const transparency = Math.round((1 - (values.opacity ?? styles[0].opacity)) * 100);
+  element("layer-opacity-input").value = String(transparency);
+  element("layer-opacity-value").value = values.opacity == null ? "Mixed" : `${transparency}%`;
+  element("gradient-color-row").classList.toggle("hidden", values.colorMode === "solid");
+  element("mixed-hint").classList.toggle("hidden", !Object.values(values).some(value => value == null));
+}
+
+function updatePatternSelection(patternId, selected, extendRange = false) {
+  const order = state.settings.layerOrder;
+  if (extendRange && state.lastSelectedPatternId != null) {
+    const start = order.indexOf(state.lastSelectedPatternId);
+    const end = order.indexOf(patternId);
+    if (start >= 0 && end >= 0) {
+      for (let index = Math.min(start, end); index <= Math.max(start, end); index++) {
+        if (selected) state.selectedPatternIds.add(order[index]);
+        else state.selectedPatternIds.delete(order[index]);
+      }
+    }
+  } else if (selected) state.selectedPatternIds.add(patternId);
+  else state.selectedPatternIds.delete(patternId);
+  state.lastSelectedPatternId = patternId;
+  refreshPatterns();
+  refreshLayerStyleControls();
+}
+
+function selectOnlyPattern(patternId) {
+  state.selectedPatternIds = new Set([patternId]);
+  state.lastSelectedPatternId = patternId;
+  refreshPatterns();
+  refreshLayerStyleControls();
+}
+
+function applyLayerStyle(property, value) {
+  for (const patternId of selectedPatternIds()) layerStyle(patternId)[property] = value;
+  refreshPatterns();
+  refreshLayerStyleControls();
+  state.visualizer?.draw(currentPosition());
+}
+
 function refreshPatterns() {
   const container = element("pattern-list");
   container.replaceChildren();
   const patternsById = new Map(state.project.patterns.map(pattern => [pattern.id, pattern]));
   const orderedPatterns = state.settings.layerOrder.map(id => patternsById.get(id)).filter(Boolean);
   for (const [layerIndex, pattern] of orderedPatterns.entries()) {
-    const colorIndex = state.project.patterns.findIndex(item => item.id === pattern.id);
+    const style = layerStyle(pattern.id);
     const row = document.createElement("div");
-    row.className = `pattern-row${state.settings.enabledPatterns.has(pattern.id) ? "" : " muted-pattern"}`;
+    row.className = `pattern-row${state.settings.enabledPatterns.has(pattern.id) ? "" : " muted-pattern"}${state.selectedPatternIds.has(pattern.id) ? " selected-pattern" : ""}`;
     row.draggable = true;
     row.dataset.patternId = String(pattern.id);
     row.addEventListener("dragstart", event => {
@@ -128,10 +204,21 @@ function refreshPatterns() {
       row.classList.remove("drop-target");
       movePatternLayer(Number(event.dataTransfer.getData("text/plain")), layerIndex);
     });
+    const selection = document.createElement("input");
+    selection.type = "checkbox";
+    selection.className = "pattern-select";
+    selection.checked = state.selectedPatternIds.has(pattern.id);
+    selection.setAttribute("aria-label", `Select ${pattern.name}`);
+    selection.onclick = event => updatePatternSelection(pattern.id, event.currentTarget.checked, event.shiftKey);
     const swatch = document.createElement("button");
     swatch.className = "pattern-swatch";
-    swatch.style.background = PALETTE[colorIndex % PALETTE.length][0];
-    swatch.setAttribute("aria-label", `${pattern.name} color`);
+    swatch.style.background = style.colorMode === "gradient" ? `linear-gradient(90deg, ${style.primaryColor}, ${style.secondaryColor})` : style.primaryColor;
+    swatch.setAttribute("aria-label", `Edit ${pattern.name} style`);
+    swatch.title = "Edit layer style";
+    swatch.onclick = event => {
+      if (event.metaKey || event.ctrlKey) updatePatternSelection(pattern.id, !state.selectedPatternIds.has(pattern.id));
+      else selectOnlyPattern(pattern.id);
+    };
     const name = document.createElement("span");
     name.className = "pattern-name";
     name.textContent = pattern.name;
@@ -149,10 +236,11 @@ function refreshPatterns() {
     };
     mode.onclick = () => {
       const nextMode = state.settings.trackModes.get(pattern.id) === "step" ? "melody" : "step";
-      state.settings.trackModes.set(pattern.id, nextMode);
-      updateModeButton();
+      const targets = state.selectedPatternIds.has(pattern.id) ? selectedPatternIds() : [pattern.id];
+      for (const patternId of targets) state.settings.trackModes.set(patternId, nextMode);
+      refreshPatterns();
       state.visualizer.draw(currentPosition());
-      notify(`${pattern.name}: ${nextMode === "step" ? "step percussion" : "melody"} rendering`);
+      notify(targets.length > 1 ? `${targets.length} layers: ${nextMode === "step" ? "step percussion" : "melody"} rendering` : `${pattern.name}: ${nextMode === "step" ? "step percussion" : "melody"} rendering`);
     };
     updateModeButton();
     const layerControls = document.createElement("span");
@@ -182,7 +270,7 @@ function refreshPatterns() {
       row.classList.toggle("muted-pattern", !state.settings.enabledPatterns.has(pattern.id));
       state.visualizer.draw(currentPosition());
     };
-    row.append(swatch, name, layerControls, mode, toggle);
+    row.append(selection, swatch, name, layerControls, mode, toggle);
     container.append(row);
   }
 }
@@ -208,6 +296,9 @@ async function loadFlp(file) {
     state.fileName = file.name.replace(/\.flp$/i, "");
     state.settings.enabledPatterns = new Set(project.patterns.map(pattern => pattern.id));
     state.settings.layerOrder = project.patterns.map(pattern => pattern.id);
+    state.settings.layerStyles = new Map(project.patterns.map((pattern, index) => [pattern.id, createLayerStyle(index)]));
+    state.selectedPatternIds = new Set(project.patterns.length ? [project.patterns[0].id] : []);
+    state.lastSelectedPatternId = project.patterns[0]?.id ?? null;
     state.settings.trackModes = new Map(project.patterns.map(pattern => {
       const percussionNotes = pattern.notes.filter(note => note.channel >= 8 && note.channel !== 9).length;
       return [pattern.id, percussionNotes > pattern.notes.length / 2 ? "step" : "melody"];
@@ -221,7 +312,10 @@ async function loadFlp(file) {
     element("time-total").textContent = formatTime(project.duration);
     element("empty-state").classList.add("hidden");
     for (const id of ["play-button", "restart-button", "timeline", "render-button", "midi-button"]) element(id).disabled = false;
+    element("select-all-patterns").disabled = project.patterns.length === 0;
+    element("clear-pattern-selection").disabled = project.patterns.length === 0;
     refreshPatterns();
+    refreshLayerStyleControls();
     seek(0);
     notify(`Loaded ${project.patterns.length} patterns and ${project.notes.length.toLocaleString()} notes.`);
   } catch (error) {
@@ -300,6 +394,18 @@ function bindControls() {
   element("render-button").onclick = exportVideo;
   element("header-export").onclick = () => state.project ? exportVideo() : notify("Load an FLP project first.");
   element("midi-button").onclick = () => download(new Blob([createMidi(state.project, state.settings.enabledPatterns)], { type: "audio/midi" }), `${state.fileName}.mid`);
+  element("select-all-patterns").onclick = () => {
+    state.selectedPatternIds = new Set(state.settings.layerOrder);
+    state.lastSelectedPatternId = state.settings.layerOrder.at(-1) ?? null;
+    refreshPatterns();
+    refreshLayerStyleControls();
+  };
+  element("clear-pattern-selection").onclick = () => {
+    state.selectedPatternIds.clear();
+    state.lastSelectedPatternId = null;
+    refreshPatterns();
+    refreshLayerStyleControls();
+  };
 
   element("background-input").oninput = event => { state.settings.background = event.target.value; state.visualizer?.draw(currentPosition()); };
   element("frame-preset-input").onchange = event => {
@@ -316,6 +422,12 @@ function bindControls() {
   for (const [id, key] of [["playhead-input", "playhead"], ["effects-input", "effects"], ["percussion-input", "percussion"]]) {
     element(id).onchange = event => { state.settings[key] = event.target.checked; state.visualizer?.draw(currentPosition()); };
   }
+  for (const [id, property] of [["note-animation-input", "noteAnimation"], ["particle-animation-input", "particleAnimation"], ["color-mode-input", "colorMode"]]) {
+    element(id).onchange = event => applyLayerStyle(property, event.target.value);
+  }
+  element("layer-color-primary").oninput = event => applyLayerStyle("primaryColor", event.target.value);
+  element("layer-color-secondary").oninput = event => applyLayerStyle("secondaryColor", event.target.value);
+  element("layer-opacity-input").oninput = event => applyLayerStyle("opacity", 1 - Number(event.target.value) / 100);
   element("resolution-input").onchange = event => {
     const [width, height] = event.target.value.split("x").map(Number);
     applyFrameSettings(event.target.value, width > height ? "landscape" : "portrait");
