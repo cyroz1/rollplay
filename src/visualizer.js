@@ -250,16 +250,21 @@ export class Visualizer {
       if (note.at + note.length < tick - shownBefore || !settings.enabledPatterns.has(note.patternId)) continue;
       visible.push(note);
     }
-    for (let channel = 18; channel >= 0; channel--) {
-      for (const note of visible) if (note.channel === channel) this.drawNote(note, tick, width, height, hitX, pixelsPerTick);
+    const layerOrder = settings.layerOrder?.length ? settings.layerOrder : project.patterns.map(pattern => pattern.id);
+    for (let index = layerOrder.length - 1; index >= 0; index--) {
+      for (const note of visible) if (note.patternId === layerOrder[index]) this.drawNote(note, tick, width, height, hitX, pixelsPerTick);
     }
 
     if (settings.effects) {
       const startHit = Math.max(0, lowerBound(project.notes, tick - project.ppq * 1.04) - 16);
+      const activeHits = [];
       for (let index = startHit; index < project.notes.length; index++) {
         const note = project.notes[index];
         if (note.at > tick) break;
-        if (settings.enabledPatterns.has(note.patternId)) this.drawHit(note, tick, width, height, hitX);
+        if (settings.enabledPatterns.has(note.patternId)) activeHits.push(note);
+      }
+      for (let index = layerOrder.length - 1; index >= 0; index--) {
+        for (const note of activeHits) if (note.patternId === layerOrder[index]) this.drawHit(note, tick, width, height, hitX);
       }
     }
   }

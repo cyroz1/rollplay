@@ -64,3 +64,34 @@ test("tracks can independently switch between melody and step-percussion renderi
   assert.equal(visualizer.isStep(drums), false, "Changing one track must not change another.");
   visualizer.draw(17);
 });
+
+test("track layer order determines which overlapping notes render on top", async context => {
+  let createCanvas;
+  try { ({ createCanvas } = createRequire(import.meta.url)("@napi-rs/canvas")); }
+  catch { context.skip("Optional native canvas package is not installed."); return; }
+
+  const note = { at: 0, length: 96, key: 60, channel: 0, velocity: 127 };
+  const project = {
+    tempo: 120,
+    ppq: 96,
+    patterns: [{ id: 1, name: "Pink", notes: [note] }, { id: 2, name: "Purple", notes: [note] }],
+    notes: [{ ...note, patternId: 1 }, { ...note, patternId: 2 }],
+  };
+  const canvas = createCanvas(1080, 1920);
+  const settings = {
+    background: "#ffffff", noteSize: 145, playhead: false, effects: false, percussion: true,
+    enabledPatterns: new Set([1, 2]), trackModes: new Map([[1, "melody"], [2, "melody"]]), layerOrder: [1, 2],
+  };
+  const visualizer = new Visualizer(canvas, project, settings);
+  const sampleX = Math.round(1080 * .41 + 35);
+  const sampleY = Math.round(visualizer.noteY(project.notes[0], 1920));
+
+  visualizer.draw(0);
+  const pinkOnTop = canvas.getContext("2d").getImageData(sampleX, sampleY, 1, 1).data;
+  assert.ok(pinkOnTop[0] > pinkOnTop[2], "The first listed track should draw on top.");
+
+  settings.layerOrder = [2, 1];
+  visualizer.draw(0);
+  const purpleOnTop = canvas.getContext("2d").getImageData(sampleX, sampleY, 1, 1).data;
+  assert.ok(purpleOnTop[2] > purpleOnTop[0], "Moving the second track above the first should change the visible overlap.");
+});

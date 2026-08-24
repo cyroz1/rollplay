@@ -27,6 +27,7 @@ const state = {
     maxSize: 20,
     enabledPatterns: new Set(),
     trackModes: new Map(),
+    layerOrder: [],
   },
 };
 
@@ -101,12 +102,33 @@ async function setPlaying(playing) {
 function refreshPatterns() {
   const container = element("pattern-list");
   container.replaceChildren();
-  for (const [index, pattern] of state.project.patterns.entries()) {
+  const patternsById = new Map(state.project.patterns.map(pattern => [pattern.id, pattern]));
+  const orderedPatterns = state.settings.layerOrder.map(id => patternsById.get(id)).filter(Boolean);
+  for (const [layerIndex, pattern] of orderedPatterns.entries()) {
+    const colorIndex = state.project.patterns.findIndex(item => item.id === pattern.id);
     const row = document.createElement("div");
     row.className = `pattern-row${state.settings.enabledPatterns.has(pattern.id) ? "" : " muted-pattern"}`;
+    row.draggable = true;
+    row.dataset.patternId = String(pattern.id);
+    row.addEventListener("dragstart", event => {
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("text/plain", String(pattern.id));
+      row.classList.add("dragging-layer");
+    });
+    row.addEventListener("dragend", () => {
+      row.classList.remove("dragging-layer");
+      container.querySelectorAll(".drop-target").forEach(item => item.classList.remove("drop-target"));
+    });
+    row.addEventListener("dragover", event => { event.preventDefault(); event.dataTransfer.dropEffect = "move"; row.classList.add("drop-target"); });
+    row.addEventListener("dragleave", () => row.classList.remove("drop-target"));
+    row.addEventListener("drop", event => {
+      event.preventDefault();
+      row.classList.remove("drop-target");
+      movePatternLayer(Number(event.dataTransfer.getData("text/plain")), layerIndex);
+    });
     const swatch = document.createElement("button");
     swatch.className = "pattern-swatch";
-    swatch.style.background = PALETTE[index % PALETTE.length][0];
+    swatch.style.background = PALETTE[colorIndex % PALETTE.length][0];
     swatch.setAttribute("aria-label", `${pattern.name} color`);
     const name = document.createElement("span");
     name.className = "pattern-name";
@@ -131,6 +153,23 @@ function refreshPatterns() {
       notify(`${pattern.name}: ${nextMode === "step" ? "step percussion" : "melody"} rendering`);
     };
     updateModeButton();
+    const layerControls = document.createElement("span");
+    layerControls.className = "layer-controls";
+    const up = document.createElement("button");
+    up.className = "layer-button";
+    up.disabled = layerIndex === 0;
+    up.title = "Move layer up";
+    up.setAttribute("aria-label", `Move ${pattern.name} above the previous track`);
+    up.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m4 10 4-4 4 4"/></svg>';
+    up.onclick = () => movePatternLayer(pattern.id, layerIndex - 1);
+    const down = document.createElement("button");
+    down.className = "layer-button";
+    down.disabled = layerIndex === orderedPatterns.length - 1;
+    down.title = "Move layer down";
+    down.setAttribute("aria-label", `Move ${pattern.name} below the next track`);
+    down.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 4 4 4-4"/></svg>';
+    down.onclick = () => movePatternLayer(pattern.id, layerIndex + 1);
+    layerControls.append(up, down);
     const toggle = document.createElement("button");
     toggle.className = "pattern-toggle";
     toggle.setAttribute("aria-label", `Toggle ${pattern.name}`);
@@ -141,9 +180,21 @@ function refreshPatterns() {
       row.classList.toggle("muted-pattern", !state.settings.enabledPatterns.has(pattern.id));
       state.visualizer.draw(currentPosition());
     };
-    row.append(swatch, name, mode, toggle);
+    row.append(swatch, name, layerControls, mode, toggle);
     container.append(row);
   }
+}
+
+function movePatternLayer(patternId, targetIndex) {
+  const order = state.settings.layerOrder;
+  const previousIndex = order.indexOf(patternId);
+  if (previousIndex < 0 || targetIndex < 0 || targetIndex >= order.length || previousIndex === targetIndex) return;
+  order.splice(previousIndex, 1);
+  order.splice(targetIndex, 0, patternId);
+  refreshPatterns();
+  state.visualizer.draw(currentPosition());
+  const pattern = state.project.patterns.find(item => item.id === patternId);
+  notify(`${pattern?.name || "Track"}: layer ${targetIndex + 1} of ${order.length}`);
 }
 
 async function loadFlp(file) {
@@ -154,6 +205,7 @@ async function loadFlp(file) {
     state.project = project;
     state.fileName = file.name.replace(/\.flp$/i, "");
     state.settings.enabledPatterns = new Set(project.patterns.map(pattern => pattern.id));
+    state.settings.layerOrder = project.patterns.map(pattern => pattern.id);
     state.settings.trackModes = new Map(project.patterns.map(pattern => {
       const percussionNotes = pattern.notes.filter(note => note.channel >= 8 && note.channel !== 9).length;
       return [pattern.id, percussionNotes > pattern.notes.length / 2 ? "step" : "melody"];
@@ -261,4 +313,4 @@ function animationLoop() {
 
 bindControls();
 requestAnimationFrame(animationLoop);
-window.__ROLLPLAY__ = { state, loadFlp, loadAudio, seek, setPlaying, exportVideo, parseFlp, createMidi };
+window.__ROLLPLAY__ = { state, loadFlp, loadAudio, seek, setPlaying, exportVideo, parseFlp, createMidi, movePatternLayer };
