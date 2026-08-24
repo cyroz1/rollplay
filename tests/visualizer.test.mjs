@@ -81,8 +81,11 @@ test("layer styles support independent colors, opacity, and note animations", ()
   assert.deepEqual(visualizer.noteMotion(note, 24, 1), { size: 0, offset: 0 });
   settings.layerStyles.get(1).noteAnimation = "drop";
   assert.equal(visualizer.noteMotion(note, 0, 1).offset, 0, "Drop animation should begin at the note origin.");
-  assert.ok(visualizer.noteMotion(note, 96 * .21, 1).offset > 0, "Drop animation should move the note downward briefly.");
-  assert.ok(Math.abs(visualizer.noteMotion(note, 96 * .42, 1).offset) < 1e-9, "Drop animation should return to the note origin.");
+  assert.ok(visualizer.noteMotion(note, 96 * .08, 1).offset > 0, "Drop animation should move the note downward at onset.");
+  assert.equal(visualizer.noteMotion(note, note.length * .5, 1).offset, 22, "Drop animation should hold the note down while it plays.");
+  assert.equal(visualizer.noteMotion(note, note.length, 1).offset, 22, "Drop animation should remain down through the note end.");
+  assert.ok(visualizer.noteMotion(note, note.length + 96 * .09, 1).offset > 0, "Drop animation should release after the note ends.");
+  assert.equal(visualizer.noteMotion(note, note.length + 96 * .18, 1).offset, 0, "Drop animation should return after its release.");
 });
 
 test("step percussion notes render as filled diamonds", () => {
@@ -111,6 +114,11 @@ test("step percussion notes render as filled diamonds", () => {
 
   assert.ok(calls.includes("fill"), "Step percussion diamonds should be filled.");
   assert.equal(calls.includes("stroke"), false, "Step percussion diamonds should not fall back to outlines.");
+  assert.equal(calls.filter(call => call === "fill").length, 2, "Layer shadows should add one extrusion behind the note.");
+  settings.layerShadows = false;
+  calls.length = 0;
+  visualizer.drawNote(note, 0, 1080, 1920, 540, 1);
+  assert.equal(calls.filter(call => call === "fill").length, 1, "Disabling layer shadows should remove the extrusion.");
 });
 
 test("new layers default to a brightness pulse highlight", () => {
@@ -132,6 +140,8 @@ test("layer parallax makes foreground layers travel faster than background layer
   assert.ok(back < 1, "Background layers should move slower than the base timeline.");
   assert.ok(front > back, "Foreground layers should travel faster than background layers.");
   assert.equal(visualizer.layerSpeedForIndex(0, 1), 1, "A single layer should keep the normal travel speed.");
+  settings.layerParallax = false;
+  assert.equal(visualizer.layerSpeed(1), 1, "Disabling layer parallax should restore normal travel speed.");
 });
 
 test("fullscreen preview contains the canvas without stretching", async () => {

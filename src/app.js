@@ -39,6 +39,8 @@ const state = {
     playheadOpacity: 100,
     effects: true,
     percussion: true,
+    layerShadows: true,
+    layerParallax: true,
     resolution: "1080x1920",
     fps: 60,
     maxSize: 20,
@@ -553,7 +555,12 @@ function bindControls() {
       state.visualizer?.draw(currentPosition());
     };
   }
-  for (const [id, key] of [["effects-input", "effects"], ["percussion-input", "percussion"]]) {
+  for (const [id, key] of [
+    ["effects-input", "effects"],
+    ["percussion-input", "percussion"],
+    ["layer-shadows-input", "layerShadows"],
+    ["layer-parallax-input", "layerParallax"],
+  ]) {
     element(id).onchange = event => { state.settings[key] = event.target.checked; state.visualizer?.draw(currentPosition()); };
   }
   for (const [id, property] of [["note-animation-input", "noteAnimation"], ["played-note-highlight-input", "playedNoteHighlight"], ["particle-animation-input", "particleAnimation"], ["color-mode-input", "colorMode"]]) {

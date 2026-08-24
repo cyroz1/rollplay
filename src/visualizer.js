@@ -152,6 +152,7 @@ export class Visualizer {
   }
 
   layerSpeedForIndex(index, count) {
+    if (this.settings.layerParallax === false) return 1;
     if (count <= 1) return 1;
     return .78 + this.layerDepthForIndex(index, count) * .44;
   }
@@ -180,9 +181,16 @@ export class Visualizer {
     const impact = Math.exp(-hitAge / (this.project.ppq * .19));
     if (style.noteAnimation === "pulse") return { size: impact * .72, offset: 0 };
     if (style.noteAnimation === "drop") {
-      const duration = this.project.ppq * .42;
-      const progress = Math.min(1, hitAge / duration);
-      return { size: 0, offset: Math.sin(progress * Math.PI) * 22 * scale };
+      const noteDuration = Math.max(1, Number(note.length) || 1);
+      const settleDuration = Math.min(noteDuration, this.project.ppq * .16);
+      const distance = 22 * scale;
+      if (hitAge <= noteDuration) {
+        const progress = Math.min(1, hitAge / settleDuration);
+        return { size: 0, offset: distance * (1 - Math.pow(1 - progress, 3)) };
+      }
+      const releaseDuration = this.project.ppq * .18;
+      const releaseProgress = Math.min(1, (hitAge - noteDuration) / releaseDuration);
+      return { size: 0, offset: distance * (1 - releaseProgress) };
     }
     if (style.noteAnimation === "wave") {
       return { size: impact * .2, offset: Math.sin(hitAge / this.project.ppq * Math.PI * 7.4) * impact * 18 * scale };
@@ -304,8 +312,10 @@ export class Visualizer {
         stepColor.addColorStop(1, light);
       }
       if (x + stepSize < -25 || x - stepSize > width + 30) return;
-      const extrusion = (3 + depth * 11) * baseScale;
-      diamond(context, x + extrusion, y + extrusion * .72, stepSize, "#142027", fade * velocity * style.opacity * .28, true);
+      if (this.settings.layerShadows !== false) {
+        const extrusion = (3 + depth * 11) * baseScale;
+        diamond(context, x + extrusion, y + extrusion * .72, stepSize, "#142027", fade * velocity * style.opacity * .28, true);
+      }
       diamond(context, x, y, stepSize, stepColor, fade * velocity * style.opacity, true);
       if (highlightOpacity > 0) diamond(context, x, y, stepSize * .58, "#ffffff", highlightOpacity * fade * style.opacity, true);
       return;
@@ -318,10 +328,12 @@ export class Visualizer {
     const gradient = context.createLinearGradient(x, y, x + noteWidth, y);
     gradient.addColorStop(0, main); gradient.addColorStop(1, light);
     const alpha = fade * velocity * style.opacity;
-    const extrusion = (3 + depth * 11) * baseScale;
-    context.globalAlpha = alpha * .28;
-    context.fillStyle = "#142027";
-    rounded(context, x + extrusion, y + extrusion * .72 - noteHeight / 2, noteWidth, noteHeight, 8 * scale);
+    if (this.settings.layerShadows !== false) {
+      const extrusion = (3 + depth * 11) * baseScale;
+      context.globalAlpha = alpha * .28;
+      context.fillStyle = "#142027";
+      rounded(context, x + extrusion, y + extrusion * .72 - noteHeight / 2, noteWidth, noteHeight, 8 * scale);
+    }
     context.globalAlpha = alpha;
     context.fillStyle = gradient;
     rounded(context, x, y - noteHeight / 2, noteWidth, noteHeight, 8 * scale);
