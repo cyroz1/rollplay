@@ -76,6 +76,8 @@
           <label class="stacked-control"><span><span id="zoom-axis-label">Horizontal zoom</span> <output id="bars-visible-value">3 bars</output></span><input id="bars-visible-input" type="range" min="1" max="8" step="1" value="3" aria-label="Visible bars" /></label>
           <label class="control-row"><span>Playhead</span><input id="playhead-input" class="switch" type="checkbox" checked /></label>
           <fieldset class="playhead-customization" id="playhead-customization">
+            <label class="stacked-control playhead-offset-control"><span><span id="playhead-offset-label">Horizontal offset</span><output id="playhead-offset-value">0%</output></span><input id="playhead-offset-input" type="range" min="-35" max="35" step="1" value="0" aria-label="Horizontal playhead offset" /><small id="playhead-offset-hint">− left · + right</small></label>
+            <button class="button button-quiet reset-playhead-offset" id="reset-playhead-offset" type="button">Reset offset</button>
             <label class="control-row"><span>Playhead color</span><input id="playhead-color-input" type="color" value="#ff9d45" aria-label="Playhead color" /></label>
             <label class="stacked-control"><span>Thickness <output id="playhead-thickness-value">3</output></span><input id="playhead-thickness-input" type="range" min="1" max="12" step="1" value="3" aria-label="Playhead thickness" /></label>
             <label class="stacked-control"><span>Glow <output id="playhead-glow-value">55%</output></span><input id="playhead-glow-input" type="range" min="0" max="100" step="1" value="55" aria-label="Playhead glow" /></label>

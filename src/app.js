@@ -25,6 +25,7 @@ const state = {
     barsVisible: 3,
     framePreset: "portrait",
     playhead: true,
+    playheadOffset: 0,
     playheadColor: "#ff9d45",
     playheadThickness: 3,
     playheadGlow: 55,
@@ -403,6 +404,11 @@ function applyFrameSettings(resolution, preset) {
   element("resolution-input").value = resolution;
   element("frame-preset-input").value = preset;
   element("zoom-axis-label").textContent = preset === "landscape" ? "Vertical zoom" : "Horizontal zoom";
+  const offsetAxis = preset === "landscape" ? "Vertical" : "Horizontal";
+  const offsetDirection = preset === "landscape" ? "− up · + down" : "− left · + right";
+  element("playhead-offset-label").textContent = `${offsetAxis} offset`;
+  element("playhead-offset-input").setAttribute("aria-label", `${offsetAxis} playhead offset`);
+  element("playhead-offset-hint").textContent = offsetDirection;
   element("preview-frame").style.aspectRatio = `${width} / ${height}`;
   const canvas = element("preview");
   canvas.width = width;
@@ -452,6 +458,18 @@ function bindControls() {
   element("playhead-input").onchange = event => {
     state.settings.playhead = event.target.checked;
     element("playhead-customization").disabled = !event.target.checked;
+    state.visualizer?.draw(currentPosition());
+  };
+  element("playhead-offset-input").oninput = event => {
+    const offset = Number(event.target.value);
+    state.settings.playheadOffset = offset;
+    element("playhead-offset-value").value = `${offset > 0 ? "+" : ""}${offset}%`;
+    state.visualizer?.draw(currentPosition());
+  };
+  element("reset-playhead-offset").onclick = () => {
+    state.settings.playheadOffset = 0;
+    element("playhead-offset-input").value = "0";
+    element("playhead-offset-value").value = "0%";
     state.visualizer?.draw(currentPosition());
   };
   element("playhead-color-input").oninput = event => { state.settings.playheadColor = event.target.value; state.visualizer?.draw(currentPosition()); };

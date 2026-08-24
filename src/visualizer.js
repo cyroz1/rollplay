@@ -161,6 +161,14 @@ export class Visualizer {
     };
   }
 
+  playheadPosition(width, landscape = this.settings.framePreset === "landscape") {
+    const rawOffset = Number(this.settings.playheadOffset ?? 0);
+    const offset = (Number.isFinite(rawOffset) ? Math.max(-35, Math.min(35, rawOffset)) : 0) / 100;
+    const basePosition = landscape ? .16 : .41;
+    const position = basePosition + (landscape ? -offset : offset);
+    return width * Math.max(.02, Math.min(.98, position));
+  }
+
   drawPlayhead(width, height, hitX) {
     const context = this.context;
     const style = this.playheadStyle(width);
@@ -306,7 +314,7 @@ export class Visualizer {
     const width = landscape ? canvas.height : canvas.width;
     const height = landscape ? canvas.width : canvas.height;
     const tick = seconds * project.ppq * project.tempo / 60;
-    const hitX = width * (landscape ? .16 : .41);
+    const hitX = this.playheadPosition(width, landscape);
     this.refreshStepLanes();
     const pixelsPerTick = this.pixelsPerTick(width);
     const shownBefore = Math.ceil((hitX + width * .11) / pixelsPerTick);
