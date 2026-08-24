@@ -2,6 +2,8 @@
 
 A dependency-free, browser-native FL Studio project visualizer, MIDI exporter, and MP4 renderer. Drop an `.flp`, optionally add your finished audio, customize the piano-roll visualization, and export a video without uploading your music to a server.
 
+**Live site:** [rollplay.cc](https://rollplay.cc)
+
 ## Features
 
 - Reads FL Studio project binaries directly, including FL Studio 26 pattern notes and playlist arrangements.
@@ -31,7 +33,7 @@ Open `http://localhost:4173`. Node.js 18 or newer is sufficient; no installation
 
 ## Publish
 
-The application is a static website. Publish `index.html`, `styles.css`, and the `src/` directory with any static hosting provider, or run the included Node server. The development server also sets cross-origin isolation headers suitable for modern browser media APIs.
+The production site is hosted at [rollplay.cc](https://rollplay.cc). The application is static and can also be deployed by publishing `index.html`, `styles.css`, and the `src/` directory, or by running the included Node server. The development server sets cross-origin isolation headers suitable for modern browser media APIs.
 
 ## Browser support
 
