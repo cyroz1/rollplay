@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#141418" />
+    <meta name="description" content="Turn FL Studio projects into colorful MIDI visualizers and render MP4 videos in your browser." />
+    <title>ROLLPLAY — FLP Visualizer</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="#">ROLLPLAY<span>.</span></a>
+      <nav class="nav" aria-label="Main navigation">
+        <button class="nav-link active" data-tab="visualizer">Visualizer</button>
+        <button class="nav-link" data-tab="export">Export</button>
+      </nav>
+      <button class="button button-primary top-export" id="header-export">Export MP4</button>
+    </header>
+
+    <main class="workspace">
+      <aside class="rail project-rail" aria-label="Project settings">
+        <section class="rail-section">
+          <h2>PROJECT</h2>
+          <label class="dropzone" id="flp-dropzone">
+            <input id="flp-input" type="file" accept=".flp" />
+            <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 16V4m-5 5 5-5 5 5"/><path d="M4 15v5h16v-5"/></svg>
+            <strong id="flp-label">Drop an FLP file</strong>
+            <span>.flp</span>
+          </label>
+          <label class="audio-upload">
+            <input id="audio-input" type="file" accept="audio/*,.mp3,.wav,.ogg,.flac,.m4a" />
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 18V5l12-2v13a4 4 0 1 1-2-3.46V7.36l-8 1.34V18a4 4 0 1 1-2-3.46V18Z"/></svg>
+            <span><strong id="audio-label">Add audio</strong><small>WAV, MP3, OGG, FLAC</small></span>
+          </label>
+        </section>
+
+        <section class="rail-section metadata" aria-label="Project details">
+          <div><span>Tempo</span><strong id="tempo-value">—</strong></div>
+          <div><span>Duration</span><strong id="duration-value">—</strong></div>
+          <div><span>Patterns</span><strong id="patterns-value">—</strong></div>
+          <div><span>Notes</span><strong id="notes-value">—</strong></div>
+        </section>
+
+        <section class="rail-section patterns-section">
+          <h2>PATTERNS</h2>
+          <div class="pattern-list" id="pattern-list"><p class="muted empty-patterns">Load a project to see its patterns.</p></div>
+        </section>
+      </aside>
+
+      <section class="stage" aria-label="Visualizer preview">
+        <div class="preview-area" id="preview-area">
+          <div class="preview-frame" id="preview-frame"><canvas id="preview" width="1080" height="1920"></canvas></div>
+          <div class="empty-state" id="empty-state"><h1>Give your music<br />a shape.</h1><p>Drop an FL Studio project to begin.</p><label class="button button-primary" for="flp-input">Choose FLP file</label></div>
+        </div>
+        <div class="transport">
+          <button class="transport-button play" id="play-button" aria-label="Play" disabled><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
+          <button class="transport-button" id="restart-button" aria-label="Restart" disabled><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zm12 0-9 7 9 7z"/></svg></button>
+          <span class="timecode"><span id="time-current">0:00</span><span class="divider">/</span><span id="time-total">0:00</span></span>
+          <input class="timeline" id="timeline" type="range" min="0" max="1000" value="0" aria-label="Playback position" disabled />
+          <button class="transport-button" id="fullscreen-button" aria-label="Fullscreen preview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 4H4v4m12-4h4v4M4 16v4h4m12-4v4h-4"/></svg></button>
+        </div>
+      </section>
+
+      <aside class="rail settings-rail" aria-label="Visual and export settings">
+        <section class="rail-section">
+          <h2>VISUAL STYLE</h2>
+          <label class="control-row"><span>Background</span><input id="background-input" type="color" value="#ffffff" aria-label="Background color" /></label>
+          <label class="stacked-control"><span>Note size <output id="note-size-value">145%</output></span><input id="note-size-input" type="range" min="60" max="240" value="145" /></label>
+          <label class="control-row"><span>Playhead</span><input id="playhead-input" class="switch" type="checkbox" checked /></label>
+          <label class="control-row"><span>Hit effects</span><input id="effects-input" class="switch" type="checkbox" checked /></label>
+          <label class="control-row"><span>Percussion shapes</span><input id="percussion-input" class="switch" type="checkbox" checked /></label>
+        </section>
+
+        <section class="rail-section export-section" id="export-section">
+          <h2>EXPORT</h2>
+          <label class="stacked-control"><span>Resolution</span><select id="resolution-input"><option value="1080x1920">1080 × 1920 (9:16)</option><option value="720x1280">720 × 1280 (9:16)</option><option value="1920x1080">1920 × 1080 (16:9)</option><option value="1080x1080">1080 × 1080 (1:1)</option></select></label>
+          <label class="stacked-control"><span>Frame rate</span><select id="fps-input"><option value="60">60 FPS</option><option value="30">30 FPS</option><option value="24">24 FPS</option></select></label>
+          <label class="stacked-control"><span>Max file size</span><select id="size-input"><option value="20">20 MB</option><option value="10">10 MB</option><option value="50">50 MB</option><option value="100">100 MB</option></select></label>
+          <button class="button button-primary render-button" id="render-button" disabled>Render video</button>
+          <button class="button button-quiet" id="midi-button" disabled>Download MIDI</button>
+          <div class="render-progress hidden" id="render-progress"><div class="progress-track"><div id="progress-fill"></div></div><span id="progress-label">Preparing…</span></div>
+        </section>
+      </aside>
+    </main>
+
+    <div class="toast" id="toast" role="status"></div>
+    <script type="module" src="src/app.js"></script>
+  </body>
+</html>

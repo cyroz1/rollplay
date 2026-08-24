@@ -1,0 +1,39 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import { createRequire } from "node:module";
+import { parseFlp } from "../src/flp-parser.js";
+import { Visualizer } from "../src/visualizer.js";
+import { muxMp4 } from "../src/mp4-muxer.js";
+
+test("renders actual FLP notes and the playhead to a real canvas", async context => {
+  let createCanvas;
+  try { ({ createCanvas } = createRequire(import.meta.url)("@napi-rs/canvas")); }
+  catch { context.skip("Optional native canvas package is not installed."); return; }
+  let fixture;
+  try { fixture = await readFile(new URL("../../upload/key.flp", import.meta.url)); }
+  catch { context.skip("Private FLP fixture is not included in the repository."); return; }
+  const project = parseFlp(fixture);
+  const canvas = createCanvas(1080, 1920);
+  const settings = { background: "#ffffff", noteSize: 145, playhead: true, effects: true, percussion: true, enabledPatterns: new Set(project.patterns.map(pattern => pattern.id)) };
+  const visualizer = new Visualizer(canvas, project, settings);
+  visualizer.draw(17);
+  const pixel = canvas.getContext("2d").getImageData(Math.round(1080 * .41), 1100, 1, 1).data;
+  assert.ok(pixel[0] < 255 || pixel[1] < 255 || pixel[2] < 255, "The vertical playhead should color the otherwise white background.");
+});
+
+test("multiplexes browser-encoded H.264 samples into ISO MP4 boxes", async () => {
+  const video = {
+    type: "video", timescale: 1_000_000, width: 1080, height: 1920, duration: 33334,
+    description: new Uint8Array([1, 66, 0, 42, 255, 225, 0, 1, 103, 1, 0, 1, 104]),
+    samples: [
+      { index: 0, timestamp: 0, duration: 16667, key: true, data: new Uint8Array([0, 0, 0, 1, 101]) },
+      { index: 1, timestamp: 16667, duration: 16667, key: false, data: new Uint8Array([0, 0, 0, 1, 65]) },
+    ],
+  };
+  const blob = muxMp4(video);
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  const text = new TextDecoder("latin1").decode(bytes);
+  assert.equal(blob.type, "video/mp4");
+  for (const required of ["ftyp", "mdat", "moov", "trak", "avc1", "avcC", "stss"]) assert.ok(text.includes(required), `${required} box is missing.`);
+});

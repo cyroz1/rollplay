@@ -1,0 +1,243 @@
+export const PALETTE = [
+  ["#ff78ae", "#ffb7d3"], ["#a47aff", "#d4bbff"], ["#4bc9f6", "#a4eaff"],
+  ["#36d9a0", "#acf0d9"], ["#ffa23f", "#ffd795"], ["#f66dc6", "#ffafe5"],
+  ["#6a88fa", "#b4c1ff"], ["#ff7090", "#ffbdc8"], ["#ffab4f", "#ffdcac"],
+  ["#23c4ae", "#a3eee2"], ["#efcf41", "#f9eba0"], ["#fb72aa", "#ffbad2"],
+  ["#64bfff", "#b9e5ff"], ["#7ed353", "#c7efa7"], ["#be83ef", "#e4c7fb"],
+];
+
+function lowerBound(notes, tick) {
+  let low = 0, high = notes.length;
+  while (low < high) {
+    const mid = (low + high) >>> 1;
+    if (notes[mid].at < tick) low = mid + 1;
+    else high = mid;
+  }
+  return low;
+}
+
+function rounded(context, x, y, width, height, radius) {
+  if (width <= 0 || height <= 0) return;
+  context.beginPath();
+  context.roundRect(x, y, width, height, Math.min(radius, width / 2, height / 2));
+  context.fill();
+}
+
+function diamond(context, x, y, size, color, opacity, filled = false) {
+  context.save();
+  context.globalAlpha = opacity;
+  context.beginPath();
+  context.moveTo(x, y - size);
+  context.lineTo(x + size, y);
+  context.lineTo(x, y + size);
+  context.lineTo(x - size, y);
+  context.closePath();
+  if (filled) { context.fillStyle = color; context.fill(); }
+  else { context.strokeStyle = color; context.lineWidth = Math.max(1.5, size * .2); context.stroke(); }
+  context.restore();
+}
+
+function heart(context, x, y, size, color, opacity, outline = false) {
+  context.save();
+  context.globalAlpha = opacity;
+  context.translate(x, y);
+  context.beginPath();
+  context.moveTo(0, size * .77);
+  context.bezierCurveTo(-size * 1.06, size * .06, -size * .83, -size * .72, 0, -size * .29);
+  context.bezierCurveTo(size * .83, -size * .72, size * 1.06, size * .06, 0, size * .77);
+  context.closePath();
+  if (outline) { context.strokeStyle = color; context.lineWidth = Math.max(1.5, size * .13); context.stroke(); }
+  else { context.fillStyle = color; context.fill(); }
+  context.restore();
+}
+
+function spark(context, x, y, radius, color, opacity) {
+  context.save();
+  context.globalAlpha = opacity;
+  context.strokeStyle = color;
+  context.lineWidth = Math.max(1, radius * .16);
+  context.lineCap = "round";
+  context.beginPath();
+  context.moveTo(x - radius, y); context.lineTo(x + radius, y);
+  context.moveTo(x, y - radius); context.lineTo(x, y + radius);
+  context.stroke();
+  context.restore();
+}
+
+export class Visualizer {
+  constructor(canvas, project, settings) {
+    this.canvas = canvas;
+    this.context = canvas.getContext("2d", { alpha: false, desynchronized: true });
+    this.project = project;
+    this.settings = settings;
+    this.patternColors = new Map(project.patterns.map((pattern, index) => [pattern.id, PALETTE[index % PALETTE.length]]));
+  }
+
+  noteY(note, height) {
+    if (note.channel >= 8 && note.channel !== 9) return height * .755 + (note.channel - 8) * height * .0255;
+    const top = height * .106;
+    const bottom = height * .688;
+    const mapped = bottom - (note.key - 37) / 59 * (bottom - top);
+    return Math.max(height * .08, Math.min(height * .731, mapped + ((note.channel % 4) - 1.5) * height * .0029));
+  }
+
+  color(note) {
+    return this.patternColors.get(note.patternId) || PALETTE[note.channel % PALETTE.length];
+  }
+
+  drawPlayhead(width, height, hitX) {
+    const context = this.context;
+    const top = height * .06;
+    const bottom = height * .94;
+    const gradient = context.createLinearGradient(hitX, top, hitX, bottom);
+    gradient.addColorStop(0, "rgba(164,122,255,0)");
+    gradient.addColorStop(.08, "rgba(164,122,255,.72)");
+    gradient.addColorStop(.45, "rgba(255,120,174,.78)");
+    gradient.addColorStop(.85, "rgba(75,201,246,.72)");
+    gradient.addColorStop(1, "rgba(75,201,246,0)");
+    context.strokeStyle = gradient;
+    context.lineCap = "round";
+    context.globalAlpha = .14;
+    context.lineWidth = width * .012;
+    context.beginPath(); context.moveTo(hitX, top); context.lineTo(hitX, bottom); context.stroke();
+    context.globalAlpha = 1;
+    context.lineWidth = Math.max(1, width * .0024);
+    context.beginPath(); context.moveTo(hitX, top); context.lineTo(hitX, bottom); context.stroke();
+  }
+
+  drawNote(note, tick, width, height, hitX, pixelsPerTick) {
+    const context = this.context;
+    const [main, light] = this.color(note);
+    const x = hitX + (note.at - tick) * pixelsPerTick;
+    const y = this.noteY(note, height);
+    const scale = width / 1080;
+    const noteScale = this.settings.noteSize / 100;
+    const noteWidth = Math.max((note.channel >= 8 ? 13 : 20) * scale * Math.sqrt(noteScale), note.length * pixelsPerTick);
+    const hitAge = tick - note.at;
+    const impact = hitAge >= 0 ? Math.exp(-hitAge / (this.project.ppq * .19)) : 0;
+    const bounce = this.settings.effects ? impact * (.66 + Math.abs(Math.sin(hitAge / this.project.ppq * Math.PI * 5.2)) * .34) : 0;
+    const sounding = note.at <= tick && note.at + note.length > tick;
+    const fade = Math.min(1, Math.max(.18, 1 - Math.max(0, x - width * .78) / (width * .43)));
+    const velocity = .72 + Math.min(note.velocity / 128, 1) * .24;
+
+    if (this.settings.percussion && note.channel >= 8 && note.channel !== 9) {
+      const baseSize = (note.channel === 8 ? 10 : note.channel === 10 ? 7 : 8.2) * scale * noteScale;
+      diamond(context, x, y, baseSize * (1 + bounce * 1.05 + (sounding ? .13 : 0)), main, fade * velocity, note.channel === 8);
+      return;
+    }
+
+    if (x + noteWidth < -25 || x > width + 30) return;
+    const bass = note.channel === 7 || note.channel === 9;
+    const baseHeight = (note.channel === 6 ? 15 : 19) * scale * noteScale;
+    const noteHeight = baseHeight * (1 + bounce * (bass ? .35 : .56));
+    const gradient = context.createLinearGradient(x, y, x + noteWidth, y);
+    gradient.addColorStop(0, main); gradient.addColorStop(1, light);
+    context.globalAlpha = fade * velocity;
+    context.fillStyle = gradient;
+    rounded(context, x, y - noteHeight / 2, noteWidth, noteHeight, 8 * scale);
+    if (sounding) {
+      context.globalAlpha = .33 + impact * .31;
+      context.fillStyle = "#ffffff";
+      rounded(context, x + 2 * scale, y - noteHeight / 2 + 2 * scale, Math.max(1, noteWidth - 4 * scale), 2.1 * scale, scale);
+    }
+    context.globalAlpha = 1;
+    if ((note.channel === 4 || note.channel === 5) && noteWidth >= 40 * scale) {
+      heart(context, x + noteWidth - 12 * scale, y, 7 * scale * noteScale * (1 + bounce * .64), main, Math.min(1, fade * .86));
+    }
+  }
+
+  drawParticles(note, y, eased, fade, main, light, count, reach, hitX, scale) {
+    const context = this.context;
+    for (let particle = 0; particle < count; particle++) {
+      const angle = note.key * 1.73 + note.channel * 2.19 + particle * 2.71;
+      const distance = (11 + eased * (reach + particle % 3 * 11)) * scale;
+      const x = hitX + Math.cos(angle) * distance;
+      const py = y + Math.sin(angle) * distance - eased * (9 + particle % 3 * 5) * scale;
+      const color = particle % 2 ? light : main;
+      if (particle % 3 === 0) spark(context, x, py, (3.2 + particle % 2 * 2) * scale, color, fade * .8);
+      else {
+        context.globalAlpha = fade * .8;
+        context.fillStyle = color;
+        context.beginPath(); context.arc(x, py, (2.3 + particle % 3 * .95) * scale * (.48 + fade * .62), 0, Math.PI * 2); context.fill();
+        context.globalAlpha = 1;
+      }
+    }
+  }
+
+  drawHit(note, tick, width, height, hitX) {
+    const pulseLife = this.project.ppq * 1.04;
+    const elapsed = tick - note.at;
+    if (elapsed < 0 || elapsed > pulseLife) return;
+    const context = this.context;
+    const scale = width / 1080;
+    const life = elapsed / pulseLife;
+    const fade = Math.pow(1 - life, 1.35);
+    const eased = 1 - Math.pow(1 - life, 3);
+    const [main, light] = this.color(note);
+    const y = this.noteY(note, height);
+
+    context.globalAlpha = fade * fade * .24;
+    context.fillStyle = light;
+    context.beginPath(); context.arc(hitX, y, (10 + eased * 17) * scale, 0, Math.PI * 2); context.fill();
+    context.globalAlpha = 1;
+
+    if (this.settings.percussion && note.channel >= 8 && note.channel !== 9) {
+      diamond(context, hitX, y, (12 + eased * 38) * scale, main, fade * .77);
+      diamond(context, hitX, y, (8 + eased * 24) * scale, light, fade * .66);
+      this.drawParticles(note, y, eased, fade, main, light, 4, 32, hitX, scale);
+    } else if (note.channel === 4 || note.channel === 5) {
+      const lift = eased * 42 * scale;
+      const sway = Math.sin(life * Math.PI * 1.8 + note.key) * 12 * scale;
+      heart(context, hitX + sway, y - lift, (18 + eased * 14) * scale, main, fade * .93);
+      heart(context, hitX + (25 + eased * 25) * scale, y - (19 + eased * 38) * scale, 10 * scale, light, fade * .84, note.channel === 5);
+      this.drawParticles(note, y, eased, fade, main, light, 4, 37, hitX, scale);
+    } else {
+      context.globalAlpha = fade * .71;
+      context.strokeStyle = main;
+      context.lineWidth = 2.7 * scale;
+      context.beginPath(); context.arc(hitX, y, (10 + eased * 34) * scale, 0, Math.PI * 2); context.stroke();
+      context.globalAlpha = fade * .51;
+      context.strokeStyle = light;
+      context.lineWidth = 2 * scale;
+      context.beginPath(); context.arc(hitX, y, (6 + eased * 21) * scale, 0, Math.PI * 2); context.stroke();
+      context.globalAlpha = 1;
+      this.drawParticles(note, y, eased, fade, main, light, 4, 37, hitX, scale);
+    }
+  }
+
+  draw(seconds) {
+    const { canvas, context, project, settings } = this;
+    const width = canvas.width;
+    const height = canvas.height;
+    const tick = seconds * project.ppq * project.tempo / 60;
+    const hitX = width * .41;
+    const pixelsPerTick = 1.12 * width / 1080;
+    const shownBefore = Math.ceil((hitX + width * .11) / pixelsPerTick);
+    const shownAfter = Math.ceil((width - hitX + width * .2) / pixelsPerTick);
+    context.globalAlpha = 1;
+    context.fillStyle = settings.background;
+    context.fillRect(0, 0, width, height);
+    if (settings.playhead) this.drawPlayhead(width, height, hitX);
+
+    const start = Math.max(0, lowerBound(project.notes, tick - shownBefore) - 160);
+    const visible = [];
+    for (let index = start; index < project.notes.length; index++) {
+      const note = project.notes[index];
+      if (note.at > tick + shownAfter) break;
+      if (note.at + note.length < tick - shownBefore || !settings.enabledPatterns.has(note.patternId)) continue;
+      visible.push(note);
+    }
+    for (let channel = 18; channel >= 0; channel--) {
+      for (const note of visible) if (note.channel === channel) this.drawNote(note, tick, width, height, hitX, pixelsPerTick);
+    }
+
+    if (settings.effects) {
+      const startHit = Math.max(0, lowerBound(project.notes, tick - project.ppq * 1.04) - 16);
+      for (let index = startHit; index < project.notes.length; index++) {
+        const note = project.notes[index];
+        if (note.at > tick) break;
+        if (settings.enabledPatterns.has(note.patternId)) this.drawHit(note, tick, width, height, hitX);
+      }
+    }
+  }
+}

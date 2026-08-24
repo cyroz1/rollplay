@@ -1,4 +1,4 @@
-# KEYFRAME
+# ROLLPLAY
 
 A dependency-free, browser-native FL Studio project visualizer, MIDI exporter, and MP4 renderer. Drop an `.flp`, optionally add your finished audio, customize the piano-roll visualization, and export a video without uploading your music to a server.
 
@@ -18,7 +18,7 @@ A dependency-free, browser-native FL Studio project visualizer, MIDI exporter, a
 
 ```bash
 git clone <your-private-repository-url>
-cd keyframe
+cd rollplay
 npm run dev
 ```
 
