@@ -163,10 +163,10 @@ export class Visualizer {
 
   playheadPosition(width, landscape = this.settings.framePreset === "landscape") {
     const rawOffset = Number(this.settings.playheadOffset ?? 0);
-    const offset = (Number.isFinite(rawOffset) ? Math.max(-35, Math.min(35, rawOffset)) : 0) / 100;
+    const offset = (Number.isFinite(rawOffset) ? Math.max(-100, Math.min(100, rawOffset)) : 0) / 100;
     const basePosition = landscape ? .16 : .41;
     const position = basePosition + (landscape ? -offset : offset);
-    return width * Math.max(.02, Math.min(.98, position));
+    return width * Math.max(0, Math.min(1, position));
   }
 
   drawPlayhead(width, height, hitX) {

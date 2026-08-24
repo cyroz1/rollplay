@@ -49,7 +49,16 @@ test("layer styles support independent colors, opacity, and note animations", ()
   assert.deepEqual(visualizer.playheadStyle(1080), { color: "#123456", thickness: 12, glow: 1, opacity: .1 });
   settings.playheadOffset = 12;
   assert.equal(visualizer.playheadPosition(1080), 1080 * .53, "Portrait offsets should move the playhead right for positive values.");
+  settings.playheadOffset = -100;
+  assert.equal(visualizer.playheadPosition(1080), 0, "Portrait offsets should reach the left frame edge.");
+  settings.playheadOffset = 100;
+  assert.equal(visualizer.playheadPosition(1080), 1080, "Portrait offsets should reach the right frame edge.");
   settings.framePreset = "landscape";
+  settings.playheadOffset = 100;
+  assert.equal(visualizer.playheadPosition(1080), 0, "Landscape offsets should reach the lower frame edge after rotation.");
+  settings.playheadOffset = -100;
+  assert.equal(visualizer.playheadPosition(1080), 1080, "Landscape offsets should reach the upper frame edge after rotation.");
+  settings.playheadOffset = 12;
   assert.ok(Math.abs(visualizer.playheadPosition(1080) - 1080 * .04) < 1e-9, "Landscape offsets should move the playhead down for positive values.");
 
   settings.layerStyles.get(1).colorMode = "gradient";
