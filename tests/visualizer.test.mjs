@@ -37,7 +37,9 @@ test("layer styles support independent colors, opacity, and note animations", ()
   assert.notEqual(visualizer.noteMotion(note, 24, 1).offset, 0, "Wave animation should offset a recently hit note.");
 
   settings.layerStyles.get(1).playedNoteHighlight = "pulse";
-  assert.notEqual(visualizer.noteHighlightOpacity(note, 12), visualizer.noteHighlightOpacity(note, 36));
+  assert.equal(visualizer.noteHighlightOpacity(note, 0), 0, "The pulse should begin at note onset.");
+  assert.ok(visualizer.noteHighlightOpacity(note, 24) > visualizer.noteHighlightOpacity(note, 12), "The pulse should rise once.");
+  assert.equal(visualizer.noteHighlightOpacity(note, 60), 0, "The pulse should finish and stay off.");
   settings.layerStyles.get(1).playedNoteHighlight = "none";
   assert.equal(visualizer.noteHighlightOpacity(note, 24), 0);
   settings.layerStyles.get(1).playedNoteHighlight = "constant";

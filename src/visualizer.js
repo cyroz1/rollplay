@@ -143,8 +143,10 @@ export class Visualizer {
   noteHighlightOpacity(note, tick, style = this.layerStyle(note.patternId)) {
     if (tick < note.at || tick >= note.at + note.length || style.playedNoteHighlight === "none") return 0;
     if (style.playedNoteHighlight === "pulse") {
-      const phase = (tick - note.at) / this.project.ppq * Math.PI * 4;
-      return .1 + (.5 + Math.sin(phase) * .5) * .34;
+      const pulseDuration = this.project.ppq * .5;
+      const progress = Math.min(1, (tick - note.at) / pulseDuration);
+      if (progress >= 1) return 0;
+      return Math.sin(progress * Math.PI) * .44;
     }
     return .28;
   }
