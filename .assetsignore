@@ -1,0 +1,28 @@
+# Dependencies and local Cloudflare state
+node_modules/
+.wrangler/
+
+# Repository and development-only files
+.git/
+tests/
+server.mjs
+README.md
+package.json
+package-lock.json
+bun.lock
+bun.lockb
+wrangler.json
+wrangler.jsonc
+.gitignore
+.assetsignore
+
+# Local-only media and artifacts
+*.flp
+*.mp3
+*.wav
+*.ogg
+*.flac
+*.m4a
+*.mp4
+screenshots/
+.DS_Store
