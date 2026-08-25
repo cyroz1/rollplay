@@ -146,6 +146,16 @@ export class Visualizer {
     };
   }
 
+  shadowStyle() {
+    const rawDepth = Number(this.settings.shadowDepth ?? 100);
+    const rawOpacity = Number(this.settings.shadowOpacity ?? 28);
+    return {
+      color: /^#[\da-f]{6}$/i.test(this.settings.shadowColor) ? this.settings.shadowColor : "#142027",
+      depth: Number.isFinite(rawDepth) ? clamp(rawDepth / 100, 0, 2) : 1,
+      opacity: Number.isFinite(rawOpacity) ? clamp(rawOpacity / 100, 0, 1) : .28,
+    };
+  }
+
   layerDepthForIndex(index, count) {
     if (count <= 1) return .78;
     return 1 - clamp(index, 0, count - 1) / (count - 1);
@@ -316,8 +326,11 @@ export class Visualizer {
       }
       if (x + stepSize < -25 || x - stepSize > width + 30) return;
       if (this.settings.layerShadows !== false) {
-        const extrusion = (3 + depth * 11) * baseScale;
-        diamond(context, x + extrusion, y + extrusion * .72, stepSize, "#142027", fade * velocity * style.opacity * .28, true);
+        const shadow = this.shadowStyle();
+        const extrusion = (3 + depth * 11) * baseScale * shadow.depth;
+        if (extrusion > 0 && shadow.opacity > 0) {
+          diamond(context, x + extrusion, y + extrusion * .72, stepSize, shadow.color, fade * velocity * style.opacity * shadow.opacity, true);
+        }
       }
       diamond(context, x, y, stepSize, stepColor, fade * velocity * style.opacity, true);
       if (highlightOpacity > 0) diamond(context, x, y, stepSize * .58, "#ffffff", highlightOpacity * fade * style.opacity, true);
@@ -332,10 +345,13 @@ export class Visualizer {
     gradient.addColorStop(0, main); gradient.addColorStop(1, light);
     const alpha = fade * velocity * style.opacity;
     if (this.settings.layerShadows !== false) {
-      const extrusion = (3 + depth * 11) * baseScale;
-      context.globalAlpha = alpha * .28;
-      context.fillStyle = "#142027";
-      rounded(context, x + extrusion, y + extrusion * .72 - noteHeight / 2, noteWidth, noteHeight, 8 * scale);
+      const shadow = this.shadowStyle();
+      const extrusion = (3 + depth * 11) * baseScale * shadow.depth;
+      if (extrusion > 0 && shadow.opacity > 0) {
+        context.globalAlpha = alpha * shadow.opacity;
+        context.fillStyle = shadow.color;
+        rounded(context, x + extrusion, y + extrusion * .72 - noteHeight / 2, noteWidth, noteHeight, 8 * scale);
+      }
     }
     context.globalAlpha = alpha;
     context.fillStyle = gradient;

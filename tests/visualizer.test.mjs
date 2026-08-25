@@ -90,6 +90,7 @@ test("layer styles support independent colors, opacity, and note animations", ()
 
 test("step percussion notes render as filled diamonds", () => {
   const calls = [];
+  const fillStyles = [];
   const context = {
     save() { calls.push("save"); },
     restore() { calls.push("restore"); },
@@ -97,7 +98,7 @@ test("step percussion notes render as filled diamonds", () => {
     moveTo() {},
     lineTo() {},
     closePath() {},
-    fill() { calls.push("fill"); },
+    fill() { calls.push("fill"); fillStyles.push({ color: this.fillStyle, alpha: this.globalAlpha }); },
     stroke() { calls.push("stroke"); },
   };
   const note = { at: 0, length: 96, key: 42, channel: 10, velocity: 100, patternId: 1 };
@@ -115,6 +116,21 @@ test("step percussion notes render as filled diamonds", () => {
   assert.ok(calls.includes("fill"), "Step percussion diamonds should be filled.");
   assert.equal(calls.includes("stroke"), false, "Step percussion diamonds should not fall back to outlines.");
   assert.equal(calls.filter(call => call === "fill").length, 2, "Layer shadows should add one extrusion behind the note.");
+  assert.equal(fillStyles[0].color, "#142027", "Layer shadows should use the default shadow color.");
+  settings.shadowColor = "#abcdef";
+  settings.shadowDepth = 150;
+  settings.shadowOpacity = 80;
+  assert.deepEqual(visualizer.shadowStyle(), { color: "#abcdef", depth: 1.5, opacity: .8 });
+  calls.length = 0;
+  fillStyles.length = 0;
+  visualizer.drawNote(note, 0, 1080, 1920, 540, 1);
+  assert.equal(fillStyles[0].color, "#abcdef", "Customized layer shadows should use the selected color.");
+  assert.ok(Math.abs(fillStyles[0].alpha - ((.72 + 100 / 128 * .24) * .8)) < 1e-9, "Customized layer shadows should use the selected opacity.");
+  settings.shadowOpacity = 0;
+  calls.length = 0;
+  fillStyles.length = 0;
+  visualizer.drawNote(note, 0, 1080, 1920, 540, 1);
+  assert.equal(calls.filter(call => call === "fill").length, 1, "Zero shadow opacity should remove the extrusion.");
   settings.layerShadows = false;
   calls.length = 0;
   visualizer.drawNote(note, 0, 1080, 1920, 540, 1);

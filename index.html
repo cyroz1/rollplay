@@ -99,6 +99,11 @@
           <label class="control-row"><span>Hit effects</span><input id="effects-input" class="switch" type="checkbox" checked /></label>
           <label class="control-row"><span>Percussion shapes</span><input id="percussion-input" class="switch" type="checkbox" checked /></label>
           <label class="control-row"><span>Layer shadows</span><input id="layer-shadows-input" class="switch" type="checkbox" checked /></label>
+          <fieldset class="shadow-customization" id="shadow-customization">
+            <label class="control-row"><span>Shadow color</span><input id="shadow-color-input" type="color" value="#142027" aria-label="Shadow color" /></label>
+            <label class="stacked-control"><span>Shadow depth <output id="shadow-depth-value">100%</output></span><input id="shadow-depth-input" type="range" min="0" max="200" step="1" value="100" aria-label="Shadow depth" /></label>
+            <label class="stacked-control"><span>Shadow opacity <output id="shadow-opacity-value">28%</output></span><input id="shadow-opacity-input" type="range" min="0" max="100" step="1" value="28" aria-label="Shadow opacity" /></label>
+          </fieldset>
           <label class="control-row"><span>Layer parallax</span><input id="layer-parallax-input" class="switch" type="checkbox" checked /></label>
           <label class="stacked-control"><span>Parallax strength <output id="parallax-strength-value">100%</output></span><input id="parallax-strength-input" type="range" min="0" max="100" step="1" value="100" aria-label="Parallax strength" /></label>
         </section>

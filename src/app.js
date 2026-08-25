@@ -40,6 +40,9 @@ const state = {
     effects: true,
     percussion: true,
     layerShadows: true,
+    shadowColor: "#142027",
+    shadowDepth: 100,
+    shadowOpacity: 28,
     layerParallax: true,
     parallaxStrength: 100,
     resolution: "1080x1920",
@@ -556,13 +559,31 @@ function bindControls() {
       state.visualizer?.draw(currentPosition());
     };
   }
+  for (const [id, key, outputId] of [
+    ["shadow-depth-input", "shadowDepth", "shadow-depth-value"],
+    ["shadow-opacity-input", "shadowOpacity", "shadow-opacity-value"],
+  ]) {
+    element(id).oninput = event => {
+      state.settings[key] = Number(event.target.value);
+      element(outputId).value = `${event.target.value}%`;
+      state.visualizer?.draw(currentPosition());
+    };
+  }
   for (const [id, key] of [
     ["effects-input", "effects"],
     ["percussion-input", "percussion"],
-    ["layer-shadows-input", "layerShadows"],
   ]) {
     element(id).onchange = event => { state.settings[key] = event.target.checked; state.visualizer?.draw(currentPosition()); };
   }
+  element("layer-shadows-input").onchange = event => {
+    state.settings.layerShadows = event.target.checked;
+    element("shadow-customization").disabled = !event.target.checked;
+    state.visualizer?.draw(currentPosition());
+  };
+  element("shadow-color-input").oninput = event => {
+    state.settings.shadowColor = event.target.value;
+    state.visualizer?.draw(currentPosition());
+  };
   element("layer-parallax-input").onchange = event => {
     state.settings.layerParallax = event.target.checked;
     element("parallax-strength-input").disabled = !event.target.checked;
