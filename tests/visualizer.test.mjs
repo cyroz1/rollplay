@@ -140,6 +140,11 @@ test("layer parallax makes foreground layers travel faster than background layer
   assert.ok(back < 1, "Background layers should move slower than the base timeline.");
   assert.ok(front > back, "Foreground layers should travel faster than background layers.");
   assert.equal(visualizer.layerSpeedForIndex(0, 1), 1, "A single layer should keep the normal travel speed.");
+  settings.parallaxStrength = 0;
+  assert.equal(visualizer.layerSpeed(1), 1, "Zero parallax strength should flatten layer travel speeds.");
+  settings.parallaxStrength = 50;
+  const halfStrengthFront = visualizer.layerSpeed(1);
+  assert.ok(halfStrengthFront > 1 && halfStrengthFront < front, "Partial parallax strength should scale the foreground speed difference.");
   settings.layerParallax = false;
   assert.equal(visualizer.layerSpeed(1), 1, "Disabling layer parallax should restore normal travel speed.");
 });

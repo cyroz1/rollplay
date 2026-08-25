@@ -154,7 +154,10 @@ export class Visualizer {
   layerSpeedForIndex(index, count) {
     if (this.settings.layerParallax === false) return 1;
     if (count <= 1) return 1;
-    return .78 + this.layerDepthForIndex(index, count) * .44;
+    const rawStrength = Number(this.settings.parallaxStrength ?? 100);
+    const strength = Number.isFinite(rawStrength) ? clamp(rawStrength / 100, 0, 1) : 1;
+    const baseSpeed = .78 + this.layerDepthForIndex(index, count) * .44;
+    return 1 + (baseSpeed - 1) * strength;
   }
 
   layerDepth(patternId, layerOrder = this.settings.layerOrder) {

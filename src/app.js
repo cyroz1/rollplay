@@ -41,6 +41,7 @@ const state = {
     percussion: true,
     layerShadows: true,
     layerParallax: true,
+    parallaxStrength: 100,
     resolution: "1080x1920",
     fps: 60,
     maxSize: 20,
@@ -559,10 +560,19 @@ function bindControls() {
     ["effects-input", "effects"],
     ["percussion-input", "percussion"],
     ["layer-shadows-input", "layerShadows"],
-    ["layer-parallax-input", "layerParallax"],
   ]) {
     element(id).onchange = event => { state.settings[key] = event.target.checked; state.visualizer?.draw(currentPosition()); };
   }
+  element("layer-parallax-input").onchange = event => {
+    state.settings.layerParallax = event.target.checked;
+    element("parallax-strength-input").disabled = !event.target.checked;
+    state.visualizer?.draw(currentPosition());
+  };
+  element("parallax-strength-input").oninput = event => {
+    state.settings.parallaxStrength = Number(event.target.value);
+    element("parallax-strength-value").value = `${event.target.value}%`;
+    state.visualizer?.draw(currentPosition());
+  };
   for (const [id, property] of [["note-animation-input", "noteAnimation"], ["played-note-highlight-input", "playedNoteHighlight"], ["particle-animation-input", "particleAnimation"], ["color-mode-input", "colorMode"]]) {
     element(id).onchange = event => applyLayerStyle(property, event.target.value);
   }
