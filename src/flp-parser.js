@@ -96,7 +96,7 @@ export function parseFlp(input) {
   const clips = [];
   if (playlist) {
     const clipView = new DataView(playlist.buffer, playlist.byteOffset, playlist.byteLength);
-    const candidates = [88, 56, 36, 32].filter(stride => playlist.byteLength % stride === 0);
+    const candidates = [88, 56, 36, 32, 20].filter(stride => playlist.byteLength % stride === 0);
     const stride = candidates[0];
     if (!stride) throw new Error(`Unsupported FL Studio playlist layout (${playlist.byteLength} bytes).`);
     for (let position = 0; position + stride <= playlist.byteLength; position += stride) {
