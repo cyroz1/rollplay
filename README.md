@@ -15,6 +15,7 @@ A dependency-free, browser-native FL Studio project visualizer, MIDI exporter, a
 - Reorders track layers with drag-and-drop or up/down controls, keeping previews, hit effects, and exported video in sync.
 - Selects one or many layers for shared solid or gradient colors, transparency, octave offsets, note motion, and particle animation styles.
 - Adjusts horizontal zoom from one-quarter to eight visible bars, including half-bar and quarter-bar views, changing piano-roll scale and perceived scroll speed in previews and exports.
+- Splits grouped patterns into independent instrument-channel layers while preserving their shared clip timing.
 - Loads MP3, WAV, OGG, FLAC, and other browser-supported audio formats.
 - Exports standards-compliant multi-track MIDI with project tempo.
 - Renders H.264/AAC MP4 directly in supported browsers using WebCodecs and a built-in ISO BMFF multiplexer.

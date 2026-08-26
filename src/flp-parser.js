@@ -154,6 +154,43 @@ function decodePlaylist(payload, patterns, version) {
     ))[0] || null;
 }
 
+function splitPatternsByChannel(patterns, clips, channels) {
+  const patternVariants = new Map();
+  const splitPatterns = [];
+  let nextPatternId = Math.max(-1, ...patterns.keys()) + 1;
+
+  for (const pattern of patterns.values()) {
+    const channelIds = [...new Set(pattern.notes.map(note => note.channel))].sort((left, right) => left - right);
+    if (channelIds.length <= 1) {
+      splitPatterns.push(pattern);
+      patternVariants.set(pattern.id, [{ id: pattern.id }]);
+      continue;
+    }
+
+    const variants = [];
+    for (const channel of channelIds) {
+      const channelName = channels.get(channel) || `Channel ${channel + 1}`;
+      const variant = {
+        ...pattern,
+        id: nextPatternId++,
+        name: `${pattern.name} · ${channelName}`,
+        sourcePatternId: pattern.id,
+        instrumentChannel: channel,
+        notes: pattern.notes.filter(note => note.channel === channel),
+      };
+      variants.push({ id: variant.id });
+      splitPatterns.push(variant);
+    }
+    patternVariants.set(pattern.id, variants);
+  }
+
+  const splitClips = clips.flatMap(clip => {
+    const variants = patternVariants.get(clip.patternId) || [{ id: clip.patternId }];
+    return variants.map(variant => ({ ...clip, patternId: variant.id }));
+  });
+  return { patterns: splitPatterns, clips: splitClips };
+}
+
 /** Parse an FL Studio .flp binary without plugins, native code, or a server. */
 export function parseFlp(input) {
   const bytes = input instanceof Uint8Array ? input : new Uint8Array(input);
@@ -227,7 +264,7 @@ export function parseFlp(input) {
     right.clips.length - left.clips.length
     || right.coverage - left.coverage
   ))[0];
-  const clips = playlist?.clips ? [...playlist.clips] : [];
+  let clips = playlist?.clips ? [...playlist.clips] : [];
 
   if (!clips.length) {
     let position = 0;
@@ -239,9 +276,14 @@ export function parseFlp(input) {
     }
   }
 
+  const split = splitPatternsByChannel(patterns, clips, channels);
+  const renderPatterns = new Map(split.patterns.map(pattern => [pattern.id, pattern]));
+  clips = split.clips;
+
   const notes = [];
   for (const clip of clips) {
-    const pattern = patterns.get(clip.patternId);
+    const pattern = renderPatterns.get(clip.patternId);
+    if (!pattern) continue;
     for (const note of pattern.notes) {
       if (note.position >= clip.length) continue;
       notes.push({
@@ -261,7 +303,7 @@ export function parseFlp(input) {
   return {
     version, tempo, ppq, channelCount,
     channels: [...channels].map(([id, name]) => ({ id, name })),
-    patterns: [...patterns.values()].filter(pattern => pattern.notes.length),
+    patterns: [...renderPatterns.values()].filter(pattern => pattern.notes.length),
     clips, notes, totalTicks,
     duration: totalTicks / ppq * 60 / tempo,
   };

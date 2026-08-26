@@ -31,10 +31,11 @@ function blobEvent(id, payload) {
   return concat(new Uint8Array([id, ...varint(payload.length)]), payload);
 }
 
-function makeNote(position) {
+function makeNote(position, channel = 0) {
   const bytes = new Uint8Array(24);
   const view = new DataView(bytes.buffer);
   view.setUint32(0, position, true);
+  view.setUint16(6, channel, true);
   view.setUint32(8, 96, true);
   view.setUint16(12, 60, true);
   view.setUint8(21, 100);
@@ -52,8 +53,8 @@ function makePlaylistRecord(position, recordSize) {
   return bytes;
 }
 
-function makeFlp({ recordSize, clipCount, version = "25.2.4.4960", noteEvent = 224 }) {
-  const notes = concat(...[0, 96, 192].map(makeNote));
+function makeFlp({ recordSize, clipCount, version = "25.2.4.4960", noteEvent = 224, noteChannels = [0, 0, 0] }) {
+  const notes = concat(...noteChannels.map((channel, index) => makeNote(index * 96, channel)));
   const playlist = concat(...Array.from({ length: clipCount }, (_, index) => makePlaylistRecord(index * 384, recordSize)));
   const events = concat(
     new Uint8Array([65, 1, 0]),
@@ -97,6 +98,17 @@ test("reads modern 80-byte playlist records and legacy pattern-note events", () 
   assert.equal(project.clips.length, 14);
   assert.equal(project.notes.length, 14 * 3);
   assert.equal(project.duration, (13 * 384 + 384) / 96 * 60 / 120);
+});
+
+test("splits grouped patterns into channel-specific layers", () => {
+  const project = parseFlp(makeFlp({ recordSize: 80, clipCount: 1, noteChannels: [0, 1, 0] }));
+  assert.equal(project.patterns.length, 2);
+  assert.equal(project.clips.length, 2);
+  assert.equal(project.notes.length, 3);
+  assert.deepEqual(project.patterns.map(pattern => pattern.notes.length), [2, 1]);
+  assert.deepEqual(project.patterns.map(pattern => pattern.name), ["Pattern 1 · Channel 1", "Pattern 1 · Channel 2"]);
+  assert.equal(new Set(project.notes.map(note => note.patternId)).size, 2);
+  assert.equal(new DataView(createMidi(project).buffer).getUint16(10), 3, "Each channel layer should export as its own MIDI track.");
 });
 
 test("keeps all FL Studio 26 playlist clips", () => {
