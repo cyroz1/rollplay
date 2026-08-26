@@ -11,7 +11,7 @@ test("home page exposes crawlable SEO metadata and structured data", async () =>
   assert.match(html, /<meta name="robots" content="index,follow,/);
   assert.match(html, /<meta property="og:title"/);
   assert.match(html, /<meta name="twitter:description"/);
-  assert.match(html, /<h1[^>]*>Turn FL Studio projects/);
+  assert.match(html, /<h1[^>]*>Give your music/);
 
   const jsonLd = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)?.[1];
   assert.ok(jsonLd, "JSON-LD block should be present");

@@ -6,7 +6,6 @@ function copyChunk(chunk) {
   chunk.copyTo(data);
   return data;
 }
-
 async function encodeAudio(audioBuffer, onProgress) {
   if (!audioBuffer || typeof AudioEncoder === "undefined") return null;
   const sampleRate = audioBuffer.sampleRate;
@@ -43,6 +42,20 @@ async function encodeAudio(audioBuffer, onProgress) {
   encoder.close();
   return track;
 }
+export function autoVideoBitrate(width, height, fps) {
+  const safeWidth = Math.max(1, Number(width) || 1);
+  const safeHeight = Math.max(1, Number(height) || 1);
+  const safeFps = Math.max(1, Math.min(120, Number(fps) || 30));
+  const rawBitrate = safeWidth * safeHeight * safeFps * .105;
+  return Math.max(1_000_000, Math.min(80_000_000, Math.round(rawBitrate / 100_000) * 100_000));
+}
+
+export function bitrateForMaxFileSize(maxSize, duration, audioBitrate = 0) {
+  const safeSize = Math.max(.1, Number(maxSize) || 20);
+  const safeDuration = Math.max(.1, Number(duration) || .1);
+  const safeAudioBitrate = Math.max(0, Number(audioBitrate) || 0);
+  return Math.max(180_000, Math.floor(safeSize * 1_000_000 * 8 / safeDuration * .94 - safeAudioBitrate));
+}
 
 export async function renderMp4(project, settings, audioBuffer, onProgress) {
   if (typeof VideoEncoder === "undefined") throw new Error("MP4 export requires a recent Chrome, Edge, or another browser with WebCodecs support.");
@@ -51,7 +64,9 @@ export async function renderMp4(project, settings, audioBuffer, onProgress) {
   const duration = audioBuffer ? Math.min(project.duration, audioBuffer.duration) : project.duration;
   const frameCount = Math.ceil(duration * fps);
   const audioBudget = audioBuffer ? 192000 : 0;
-  const bitrate = Math.max(180000, Math.floor(settings.maxSize * 1_000_000 * 8 / duration * .94 - audioBudget));
+  const bitrate = settings.maxSize === "auto"
+    ? autoVideoBitrate(width, height, fps)
+    : bitrateForMaxFileSize(settings.maxSize, duration, audioBudget);
   const canvas = new OffscreenCanvas(width, height);
   const visualizer = new Visualizer(canvas, project, settings);
   const video = { type: "video", timescale: 1_000_000, width, height, duration: 0, description: null, samples: [] };

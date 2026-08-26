@@ -107,14 +107,13 @@
     <header class="topbar">
       <a class="brand" href="/" aria-label="ROLLPLAY home">ROLLPLAY<span>.</span></a>
       <nav class="nav" aria-label="Main navigation">
-        <a class="nav-link active" data-tab="visualizer" href="#visualizer">Visualizer</a>
-        <a class="nav-link" data-tab="export" href="#export-section">Export</a>
+        <button class="nav-link active" data-tab="visualizer">Visualizer</button>
+        <button class="nav-link" data-tab="export">Export</button>
       </nav>
       <button class="button button-primary top-export" id="header-export">Export MP4</button>
     </header>
 
-    <main>
-    <div class="workspace">
+    <main class="workspace" id="visualizer">
       <aside class="rail project-rail" aria-label="Project settings">
         <section class="rail-section">
           <h2>PROJECT</h2>
@@ -147,10 +146,10 @@
         </section>
       </aside>
 
-      <section class="stage" id="visualizer" aria-label="Visualizer preview">
+      <section class="stage" id="visualizer-stage" aria-label="Visualizer preview">
         <div class="preview-area" id="preview-area">
           <div class="preview-frame" id="preview-frame"><canvas id="preview" width="1080" height="1920" role="img" aria-label="Animated piano-roll visualizer preview"></canvas></div>
-          <div class="empty-state" id="empty-state"><h1>Turn FL Studio projects<br />into moving music.</h1><p>Visualize FLP files, export MIDI, and render MP4 videos in your browser.</p><label class="button button-primary" for="flp-input">Choose FLP file</label></div>
+          <div class="empty-state" id="empty-state"><h1>Give your music<br />a shape.</h1><p>Drop an FL Studio project to begin.</p><label class="button button-primary" for="flp-input">Choose FLP file</label></div>
         </div>
         <div class="transport">
           <button class="transport-button play" id="play-button" aria-label="Play" disabled><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
@@ -162,82 +161,170 @@
       </section>
 
       <aside class="rail settings-rail" aria-label="Visual and export settings">
-        <section class="rail-section">
-          <h2>VISUAL STYLE</h2>
-          <label class="stacked-control"><span>Frame preset</span><select id="frame-preset-input"><option value="portrait">Portrait · 9:16</option><option value="landscape">Landscape · 16:9</option></select></label>
-          <label class="stacked-control"><span>Background</span><select id="background-mode-input" aria-label="Background mode"><option value="solid">Solid color</option><option value="gradient">Gradient</option><option value="image">Imported image</option></select></label>
-          <div class="background-solid-controls" id="background-solid-controls">
-            <label class="control-row"><span>Background color</span><input id="background-input" type="color" value="#ffffff" aria-label="Background color" /></label>
-          </div>
-          <div class="background-gradient-controls hidden" id="background-gradient-controls">
-            <label class="control-row"><span>Gradient start</span><input id="background-gradient-start" type="color" value="#ffffff" aria-label="Background gradient start color" /></label>
-            <label class="control-row"><span>Gradient end</span><input id="background-gradient-end" type="color" value="#a78bef" aria-label="Background gradient end color" /></label>
-            <label class="stacked-control"><span>Gradient angle <output id="background-gradient-angle-value">135°</output></span><input id="background-gradient-angle-input" type="range" min="0" max="360" step="1" value="135" aria-label="Background gradient angle" /></label>
-          </div>
-          <div class="background-image-controls hidden" id="background-image-controls">
-            <label class="button button-quiet background-image-button" for="background-image-input">Import image<input id="background-image-input" type="file" accept="image/*" /></label>
-            <small class="background-image-name" id="background-image-name">No image selected</small>
-            <label class="stacked-control"><span>Image fit</span><select id="background-image-fit-input" aria-label="Background image fit"><option value="cover">Cover</option><option value="contain">Contain</option><option value="stretch">Stretch</option></select></label>
-          </div>
-          <label class="stacked-control"><span>Note size <output id="note-size-value">145%</output></span><input id="note-size-input" type="range" min="60" max="240" value="145" /></label>
-          <label class="stacked-control"><span><span id="zoom-axis-label">Horizontal zoom</span> <output id="bars-visible-value">3 bars</output></span><input id="bars-visible-input" type="range" min="1" max="8" step="1" value="3" aria-label="Visible bars" /></label>
-          <label class="control-row"><span>Playhead</span><input id="playhead-input" class="switch" type="checkbox" checked /></label>
-          <fieldset class="playhead-customization" id="playhead-customization">
-            <label class="stacked-control playhead-offset-control"><span><span id="playhead-offset-label">Horizontal offset</span><output id="playhead-offset-value">0%</output></span><input id="playhead-offset-input" type="range" min="-100" max="100" step="1" value="0" aria-label="Horizontal playhead offset" /><small id="playhead-offset-hint">− left · + right</small></label>
-            <button class="button button-quiet reset-playhead-offset" id="reset-playhead-offset" type="button">Reset offset</button>
-            <label class="control-row"><span>Playhead color</span><input id="playhead-color-input" type="color" value="#ff9d45" aria-label="Playhead color" /></label>
-            <label class="stacked-control"><span>Thickness <output id="playhead-thickness-value">3</output></span><input id="playhead-thickness-input" type="range" min="1" max="12" step="1" value="3" aria-label="Playhead thickness" /></label>
-            <label class="stacked-control"><span>Glow <output id="playhead-glow-value">55%</output></span><input id="playhead-glow-input" type="range" min="0" max="100" step="1" value="55" aria-label="Playhead glow" /></label>
-            <label class="stacked-control"><span>Opacity <output id="playhead-opacity-value">100%</output></span><input id="playhead-opacity-input" type="range" min="10" max="100" step="1" value="100" aria-label="Playhead opacity" /></label>
-          </fieldset>
-          <label class="control-row"><span>Hit effects</span><input id="effects-input" class="switch" type="checkbox" checked /></label>
-          <label class="control-row"><span>Percussion shapes</span><input id="percussion-input" class="switch" type="checkbox" checked /></label>
-          <label class="control-row"><span>Layer shadows</span><input id="layer-shadows-input" class="switch" type="checkbox" checked /></label>
-          <fieldset class="shadow-customization" id="shadow-customization">
-            <label class="control-row"><span>Shadow color</span><input id="shadow-color-input" type="color" value="#142027" aria-label="Shadow color" /></label>
-            <label class="stacked-control"><span>Shadow depth <output id="shadow-depth-value">100%</output></span><input id="shadow-depth-input" type="range" min="0" max="200" step="1" value="100" aria-label="Shadow depth" /></label>
-            <label class="stacked-control"><span>Shadow opacity <output id="shadow-opacity-value">28%</output></span><input id="shadow-opacity-input" type="range" min="0" max="100" step="1" value="28" aria-label="Shadow opacity" /></label>
-          </fieldset>
-          <label class="control-row"><span>Layer parallax</span><input id="layer-parallax-input" class="switch" type="checkbox" checked /></label>
-          <label class="stacked-control"><span>Parallax strength <output id="parallax-strength-value">100%</output></span><input id="parallax-strength-input" type="range" min="0" max="100" step="1" value="100" aria-label="Parallax strength" /></label>
-        </section>
+        <details class="rail-section settings-section visual-style-section" id="visual-style-section" open>
+          <summary class="section-summary"><h2>VISUAL STYLE</h2><span class="section-summary-meta">Canvas + motion</span></summary>
+          <div class="rail-section-content">
+            <details class="customization-group" open>
+              <summary class="customization-summary"><span>Presets</span><small>Global settings</small></summary>
+              <div class="customization-group-content">
+                <div class="global-preset-controls" aria-label="Global customization presets">
+                  <div class="preset-heading"><strong>GLOBAL PRESET</strong><span>Saved on this device</span></div>
+                  <label class="stacked-control"><span>Customization preset</span><select id="customization-preset-input" aria-label="Customization preset"><option value="">No saved presets</option></select></label>
+                  <div class="preset-name-row">
+                    <input id="preset-name-input" type="text" maxlength="40" placeholder="Name current settings" aria-label="Preset name" />
+                    <button class="button button-quiet" id="save-preset-button" type="button">Save</button>
+                  </div>
+                  <div class="preset-action-row">
+                    <button class="button button-quiet" id="apply-preset-button" type="button" disabled>Apply</button>
+                    <button class="button button-quiet" id="delete-preset-button" type="button" disabled>Delete</button>
+                  </div>
+                  <small class="preset-hint">Stores visual and export settings, not project tracks. Imported background images are not embedded.</small>
+                </div>
+              </div>
+            </details>
 
-        <section class="rail-section layer-style-section" id="layer-style-section">
-          <div class="section-heading">
-            <h2>LAYER STYLE</h2>
-            <span class="selection-count" id="selection-count">None selected</span>
-          </div>
-          <p class="muted layer-style-empty" id="layer-style-empty">Select a pattern to edit its animation and appearance.</p>
-          <fieldset class="layer-style-controls" id="layer-style-controls" disabled>
-            <p class="mixed-hint hidden" id="mixed-hint">Mixed values · changes apply to every selected layer.</p>
-            <label class="stacked-control"><span>Note animation</span><select id="note-animation-input"><option value="" disabled>Mixed</option><option value="none">None</option><option value="pulse">Pulse</option><option value="bounce">Bounce</option><option value="wave">Wave</option><option value="drop">Drop</option></select></label>
-            <label class="stacked-control"><span>Octave offset <output id="layer-octave-offset-value">0 octaves</output></span><input id="layer-octave-offset-input" type="range" min="-4" max="4" step="1" value="0" aria-label="Selected layer octave offset" /></label>
-            <label class="stacked-control"><span>Played note highlight</span><select id="played-note-highlight-input"><option value="" disabled>Mixed</option><option value="none">None</option><option value="constant">Constant brightness</option><option value="pulse">Brightness pulse</option></select></label>
-            <label class="stacked-control"><span>Particle animation</span><select id="particle-animation-input"><option value="" disabled>Mixed</option><option value="none">None</option><option value="burst">Burst</option><option value="float">Float</option><option value="orbit">Orbit</option></select></label>
-            <label class="stacked-control"><span>Note fill</span><select id="color-mode-input"><option value="" disabled>Mixed</option><option value="solid">Solid</option><option value="gradient">Note gradient</option></select></label>
-            <label class="control-row"><span>Primary color</span><input id="layer-color-primary" type="color" value="#ff78ae" aria-label="Selected layer primary color" /></label>
-            <label class="control-row gradient-color-row" id="gradient-color-row"><span>Note gradient end</span><input id="layer-color-secondary" type="color" value="#ffb7d3" aria-label="Selected layer note gradient end color" /></label>
-            <label class="stacked-control"><span>Transparency <output id="layer-opacity-value">0%</output></span><input id="layer-opacity-input" type="range" min="0" max="100" step="1" value="0" aria-label="Selected layer transparency" /></label>
-            <div class="layer-gradient-controls hidden" id="layer-gradient-controls">
-              <div class="layer-gradient-heading"><strong>Across selected layers</strong><span>Top to bottom</span></div>
-              <label class="control-row"><span>Start color</span><input id="layer-gradient-start" type="color" value="#ff8f44" aria-label="Multi-layer gradient start color" /></label>
-              <label class="control-row"><span>End color</span><input id="layer-gradient-end" type="color" value="#b968ff" aria-label="Multi-layer gradient end color" /></label>
-              <button class="button button-quiet layer-gradient-apply" id="apply-layer-gradient" type="button">Apply across layers</button>
-            </div>
-          </fieldset>
-        </section>
+            <details class="customization-group" open>
+              <summary class="customization-summary"><span>Frame &amp; background</span><small>Canvas</small></summary>
+              <div class="customization-group-content">
+                <label class="stacked-control"><span>Frame preset</span><select id="frame-preset-input"><option value="portrait">Portrait · 9:16</option><option value="landscape">Landscape · 16:9</option></select></label>
+                <label class="stacked-control"><span>Background</span><select id="background-mode-input" aria-label="Background mode"><option value="solid">Solid color</option><option value="gradient">Gradient</option><option value="image">Imported image</option></select></label>
+                <div class="background-solid-controls" id="background-solid-controls">
+                  <label class="control-row"><span>Background color</span><input id="background-input" type="color" value="#ffffff" aria-label="Background color" /></label>
+                </div>
+                <div class="background-gradient-controls hidden" id="background-gradient-controls">
+                  <label class="control-row"><span>Gradient start</span><input id="background-gradient-start" type="color" value="#ffffff" aria-label="Background gradient start color" /></label>
+                  <label class="control-row"><span>Gradient end</span><input id="background-gradient-end" type="color" value="#a78bef" aria-label="Background gradient end color" /></label>
+                  <label class="stacked-control"><span>Gradient angle <output id="background-gradient-angle-value">135°</output></span><input id="background-gradient-angle-input" type="range" min="0" max="360" step="1" value="135" aria-label="Background gradient angle" /></label>
+                </div>
+                <div class="background-image-controls hidden" id="background-image-controls">
+                  <label class="button button-quiet background-image-button" for="background-image-input">Import image<input id="background-image-input" type="file" accept="image/*" /></label>
+                  <small class="background-image-name" id="background-image-name">No image selected</small>
+                  <label class="stacked-control"><span>Image fit</span><select id="background-image-fit-input" aria-label="Background image fit"><option value="cover">Cover</option><option value="contain">Contain</option><option value="stretch">Stretch</option></select></label>
+                </div>
+              </div>
+            </details>
 
-        <section class="rail-section export-section" id="export-section">
-          <h2>EXPORT</h2>
-          <label class="stacked-control"><span>Resolution</span><select id="resolution-input"><option value="1080x1920">1080 × 1920 (9:16)</option><option value="720x1280">720 × 1280 (9:16)</option><option value="1920x1080">1920 × 1080 (16:9)</option><option value="1080x1080">1080 × 1080 (1:1)</option></select></label>
-          <label class="stacked-control"><span>Frame rate</span><select id="fps-input"><option value="60">60 FPS</option><option value="30">30 FPS</option><option value="24">24 FPS</option></select></label>
-          <label class="stacked-control"><span>Max file size</span><select id="size-input"><option value="20">20 MB</option><option value="10">10 MB</option><option value="50">50 MB</option><option value="100">100 MB</option></select></label>
-          <button class="button button-primary render-button" id="render-button" disabled>Render video</button>
-          <button class="button button-quiet" id="midi-button" disabled>Download MIDI</button>
-          <div class="render-progress hidden" id="render-progress"><div class="progress-track"><div id="progress-fill"></div></div><span id="progress-label">Preparing…</span></div>
-        </section>
+            <details class="customization-group" open>
+              <summary class="customization-summary"><span>Note layout</span><small>Scale + position</small></summary>
+              <div class="customization-group-content">
+                <label class="stacked-control"><span>Note size <output id="note-size-value">145%</output></span><input id="note-size-input" type="range" min="60" max="240" value="145" /></label>
+                <label class="stacked-control"><span><span id="zoom-axis-label">Horizontal zoom</span> <output id="bars-visible-value">3 bars</output></span><input id="bars-visible-input" type="range" min="1" max="8" step="1" value="3" aria-label="Visible bars" /></label>
+                <fieldset class="note-axis-group">
+                  <legend>Melody notes</legend>
+                  <label class="stacked-control"><span><span id="melody-vertical-zoom-label">Melody vertical zoom</span> <output id="melody-vertical-zoom-value">100%</output></span><input id="melody-vertical-zoom-input" type="range" min="50" max="220" step="1" value="100" aria-label="Melody vertical zoom" /></label>
+                  <label class="stacked-control note-axis-offset-control"><span><span id="melody-vertical-offset-label">Melody vertical offset</span> <output id="melody-vertical-offset-value">0%</output></span><input id="melody-vertical-offset-input" type="range" min="-100" max="100" step="1" value="0" aria-label="Melody vertical offset" /><small id="melody-vertical-offset-hint">− down · + up</small></label>
+                </fieldset>
+                <fieldset class="note-axis-group">
+                  <legend>Percussion notes</legend>
+                  <label class="stacked-control"><span><span id="percussion-vertical-zoom-label">Percussion vertical zoom</span> <output id="percussion-vertical-zoom-value">100%</output></span><input id="percussion-vertical-zoom-input" type="range" min="50" max="220" step="1" value="100" aria-label="Percussion vertical zoom" /></label>
+                  <label class="stacked-control note-axis-offset-control"><span><span id="percussion-vertical-offset-label">Percussion vertical offset</span> <output id="percussion-vertical-offset-value">0%</output></span><input id="percussion-vertical-offset-input" type="range" min="-100" max="100" step="1" value="0" aria-label="Percussion vertical offset" /><small id="percussion-vertical-offset-hint">− down · + up</small></label>
+                </fieldset>
+              </div>
+            </details>
+
+            <details class="customization-group" open>
+              <summary class="customization-summary"><span>Playhead</span><small>Guide line</small></summary>
+              <div class="customization-group-content">
+                <label class="control-row"><span>Playhead</span><input id="playhead-input" class="switch" type="checkbox" checked /></label>
+                <fieldset class="playhead-customization" id="playhead-customization">
+                  <label class="stacked-control playhead-offset-control"><span><span id="playhead-offset-label">Horizontal offset</span><output id="playhead-offset-value">0%</output></span><input id="playhead-offset-input" type="range" min="-100" max="100" step="1" value="0" aria-label="Horizontal playhead offset" /><small id="playhead-offset-hint">− left · + right</small></label>
+                  <button class="button button-quiet reset-playhead-offset" id="reset-playhead-offset" type="button">Reset offset</button>
+                  <label class="stacked-control"><span>Playhead color</span><select id="playhead-color-mode-input" aria-label="Playhead color mode"><option value="solid">Solid color</option><option value="gradient">Gradient</option></select></label>
+                  <div id="playhead-solid-color-controls">
+                    <label class="control-row"><span>Solid color</span><input id="playhead-color-input" type="color" value="#ff9d45" aria-label="Solid playhead color" /></label>
+                  </div>
+                  <div class="playhead-gradient-color-controls hidden" id="playhead-gradient-color-controls">
+                    <label class="control-row"><span>Gradient start</span><input id="playhead-gradient-start-input" type="color" value="#ff9d45" aria-label="Playhead gradient start color" /></label>
+                    <label class="control-row"><span>Gradient end</span><input id="playhead-gradient-end-input" type="color" value="#a78bef" aria-label="Playhead gradient end color" /></label>
+                  </div>
+                  <label class="stacked-control"><span>Thickness <output id="playhead-thickness-value">3</output></span><input id="playhead-thickness-input" type="range" min="1" max="12" step="1" value="3" aria-label="Playhead thickness" /></label>
+                  <label class="stacked-control"><span>Glow <output id="playhead-glow-value">55%</output></span><input id="playhead-glow-input" type="range" min="0" max="100" step="1" value="55" aria-label="Playhead glow" /></label>
+                  <label class="stacked-control"><span>Opacity <output id="playhead-opacity-value">100%</output></span><input id="playhead-opacity-input" type="range" min="10" max="100" step="1" value="100" aria-label="Playhead opacity" /></label>
+                </fieldset>
+              </div>
+            </details>
+
+            <details class="customization-group" open>
+              <summary class="customization-summary"><span>Effects &amp; depth</span><small>Layers</small></summary>
+              <div class="customization-group-content">
+                <label class="control-row"><span>Hit effects</span><input id="effects-input" class="switch" type="checkbox" checked /></label>
+                <label class="control-row"><span>Percussion shapes</span><input id="percussion-input" class="switch" type="checkbox" checked /></label>
+                <label class="control-row"><span>Layer shadows</span><input id="layer-shadows-input" class="switch" type="checkbox" checked /></label>
+                <fieldset class="shadow-customization" id="shadow-customization">
+                  <label class="control-row"><span>Shadow color</span><input id="shadow-color-input" type="color" value="#142027" aria-label="Shadow color" /></label>
+                  <label class="stacked-control"><span>Shadow depth <output id="shadow-depth-value">100%</output></span><input id="shadow-depth-input" type="range" min="0" max="200" step="1" value="100" aria-label="Shadow depth" /></label>
+                  <label class="stacked-control"><span>Shadow opacity <output id="shadow-opacity-value">28%</output></span><input id="shadow-opacity-input" type="range" min="0" max="100" step="1" value="28" aria-label="Shadow opacity" /></label>
+                </fieldset>
+                <label class="control-row"><span>Layer parallax</span><input id="layer-parallax-input" class="switch" type="checkbox" checked /></label>
+                <label class="stacked-control"><span>Parallax strength <output id="parallax-strength-value">100%</output></span><input id="parallax-strength-input" type="range" min="0" max="100" step="1" value="100" aria-label="Parallax strength" /></label>
+              </div>
+            </details>
+          </div>
+        </details>
+
+        <details class="rail-section settings-section layer-style-section" id="layer-style-section" open>
+          <summary class="section-summary"><h2>LAYER STYLE</h2><span class="selection-count" id="selection-count">None selected</span></summary>
+          <div class="rail-section-content">
+            <p class="muted layer-style-empty" id="layer-style-empty">Select a pattern to edit its animation and appearance.</p>
+            <fieldset class="layer-style-controls" id="layer-style-controls" disabled>
+              <p class="mixed-hint hidden" id="mixed-hint">Mixed values · changes apply to every selected layer.</p>
+              <details class="customization-group" open>
+                <summary class="customization-summary"><span>Animation</span><small>Notes + particles</small></summary>
+                <div class="customization-group-content">
+                  <label class="stacked-control"><span>Note animation</span><select id="note-animation-input"><option value="" disabled>Mixed</option><option value="none">None</option><option value="pulse">Pulse</option><option value="bounce">Bounce</option><option value="wave">Wave</option><option value="drop">Drop</option></select></label>
+                  <label class="stacked-control"><span>Octave offset <output id="layer-octave-offset-value">0 octaves</output></span><input id="layer-octave-offset-input" type="range" min="-4" max="4" step="1" value="0" aria-label="Selected layer octave offset" /></label>
+                  <label class="stacked-control"><span>Played note highlight</span><select id="played-note-highlight-input"><option value="" disabled>Mixed</option><option value="none">None</option><option value="constant">Constant brightness</option><option value="pulse">Brightness pulse</option></select></label>
+                  <label class="stacked-control"><span>Particle animation</span><select id="particle-animation-input"><option value="" disabled>Mixed</option><option value="none">None</option><option value="burst">Burst</option><option value="float">Float</option><option value="orbit">Orbit</option></select></label>
+                </div>
+              </details>
+              <details class="customization-group" open>
+                <summary class="customization-summary"><span>Appearance</span><small>Colors + transparency</small></summary>
+                <div class="customization-group-content">
+                  <label class="stacked-control"><span>Note fill</span><select id="color-mode-input"><option value="" disabled>Mixed</option><option value="solid">Solid</option><option value="gradient">Note gradient</option></select></label>
+                  <label class="control-row"><span>Primary color</span><input id="layer-color-primary" type="color" value="#ff78ae" aria-label="Selected layer primary color" /></label>
+                  <label class="control-row gradient-color-row" id="gradient-color-row"><span>Note gradient end</span><input id="layer-color-secondary" type="color" value="#ffb7d3" aria-label="Selected layer note gradient end color" /></label>
+                  <label class="stacked-control"><span>Transparency <output id="layer-opacity-value">0%</output></span><input id="layer-opacity-input" type="range" min="0" max="100" step="1" value="0" aria-label="Selected layer transparency" /></label>
+                  <div class="layer-gradient-controls hidden" id="layer-gradient-controls">
+                    <div class="layer-gradient-heading"><strong>Across selected layers</strong><span>Top to bottom</span></div>
+                    <label class="control-row"><span>Start color</span><input id="layer-gradient-start" type="color" value="#ff8f44" aria-label="Multi-layer gradient start color" /></label>
+                    <label class="control-row"><span>End color</span><input id="layer-gradient-end" type="color" value="#b968ff" aria-label="Multi-layer gradient end color" /></label>
+                    <button class="button button-quiet layer-gradient-apply" id="apply-layer-gradient" type="button">Apply across layers</button>
+                  </div>
+                </div>
+              </details>
+            </fieldset>
+          </div>
+        </details>
+
+        <details class="rail-section settings-section export-section" id="export-section" open>
+          <summary class="section-summary"><h2>EXPORT</h2><span class="section-summary-meta">Video + MIDI</span></summary>
+          <div class="rail-section-content">
+            <details class="customization-group" open>
+              <summary class="customization-summary"><span>Video output</span><small>MP4</small></summary>
+              <div class="customization-group-content">
+                <label class="stacked-control"><span>Resolution</span><select id="resolution-input">
+                  <optgroup label="Portrait · 9:16"><option value="2160x3840">2160 × 3840 (4K)</option><option value="1440x2560">1440 × 2560 (QHD)</option><option value="1080x1920" selected>1080 × 1920 (Full HD)</option><option value="720x1280">720 × 1280 (HD)</option><option value="540x960">540 × 960</option></optgroup>
+                  <optgroup label="Landscape · 16:9"><option value="3840x2160">3840 × 2160 (4K)</option><option value="2560x1440">2560 × 1440 (QHD)</option><option value="1920x1080">1920 × 1080 (Full HD)</option><option value="1280x720">1280 × 720 (HD)</option><option value="854x480">854 × 480</option></optgroup>
+                  <optgroup label="Square · 1:1"><option value="2160x2160">2160 × 2160</option><option value="1440x1440">1440 × 1440</option><option value="1080x1080">1080 × 1080</option><option value="720x720">720 × 720</option><option value="480x480">480 × 480</option></optgroup>
+                </select></label>
+                <label class="stacked-control"><span>Frame rate</span><select id="fps-input"><option value="60">60 FPS</option><option value="30">30 FPS</option><option value="24">24 FPS</option></select></label>
+                <label class="stacked-control"><span>File size / bitrate</span><select id="size-input"><option value="auto" selected>Auto · resolution optimized</option><option value="5">5 MB</option><option value="10">10 MB</option><option value="20">20 MB</option><option value="50">50 MB</option><option value="100">100 MB</option><option value="200">200 MB</option><option value="500">500 MB</option></select></label>
+                <small class="export-size-hint" id="size-hint">Auto · 13.1 Mbps at 60 FPS</small>
+                <button class="button button-primary render-button" id="render-button" disabled>Render video</button>
+                <div class="render-progress hidden" id="render-progress"><div class="progress-track"><div id="progress-fill"></div></div><span id="progress-label">Preparing…</span></div>
+              </div>
+            </details>
+            <details class="customization-group" open>
+              <summary class="customization-summary"><span>MIDI output</span><small>Note data</small></summary>
+              <div class="customization-group-content">
+                <button class="button button-quiet" id="midi-button" disabled>Download MIDI</button>
+              </div>
+            </details>
+          </div>
+        </details>
       </aside>
-    </div>
+
+    </main>
 
     <section class="site-content" aria-labelledby="site-content-title">
       <div class="site-content-inner">
@@ -303,7 +390,6 @@
         </section>
       </div>
     </section>
-    </main>
 
     <noscript>
       <div class="noscript-message">

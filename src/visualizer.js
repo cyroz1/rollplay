@@ -19,7 +19,6 @@ export function createLayerStyle(index = 0) {
     octaveOffset: 0,
   };
 }
-
 export function backgroundImageRect(canvasWidth, canvasHeight, imageWidth, imageHeight, fit = "cover") {
   const targetWidth = Math.max(1, Number(canvasWidth) || 1);
   const targetHeight = Math.max(1, Number(canvasHeight) || 1);
@@ -33,7 +32,6 @@ export function backgroundImageRect(canvasWidth, canvasHeight, imageWidth, image
   const height = sourceHeight * scale;
   return { x: (targetWidth - width) / 2, y: (targetHeight - height) / 2, width, height };
 }
-
 function lowerBound(notes, tick) {
   let low = 0, high = notes.length;
   while (low < high) {
@@ -83,8 +81,24 @@ function colorWithAlpha(color, opacity) {
   return /^#[\da-f]{6}$/i.test(color) ? `${color}${alpha}` : color;
 }
 
+function mixHexColors(first, second, ratio = .5) {
+  if (!/^#[\da-f]{6}$/i.test(first) || !/^#[\da-f]{6}$/i.test(second)) return first;
+  const amount = Math.max(0, Math.min(1, ratio));
+  const channels = [0, 2, 4].map(offset => {
+    const left = Number.parseInt(first.slice(1 + offset, 3 + offset), 16);
+    const right = Number.parseInt(second.slice(1 + offset, 3 + offset), 16);
+    return Math.round(left + (right - left) * amount).toString(16).padStart(2, "0");
+  });
+  return `#${channels.join("")}`;
+}
+
 function clamp(value, minimum, maximum) {
   return Math.max(minimum, Math.min(maximum, value));
+}
+
+function percentageSetting(value, fallback, minimum, maximum) {
+  const raw = Number(value);
+  return clamp(Number.isFinite(raw) ? raw : fallback, minimum, maximum) / 100;
 }
 
 export class Visualizer {
@@ -122,8 +136,12 @@ export class Visualizer {
     if (this.isStep(note)) {
       const lane = this.stepLanes.get(note.patternId) ?? Math.max(0, note.channel - 8);
       const laneCount = Math.max(1, this.stepLanes.size);
-      const laneSpacing = Math.min(height * .0255, height * .17 / laneCount);
-      return height * .755 + lane * laneSpacing;
+      const baseSpacing = Math.min(height * .0255, height * .17 / laneCount);
+      const laneSpacing = baseSpacing * percentageSetting(this.settings.percussionVerticalZoom, 100, 50, 220);
+      const baseCenter = height * .755 + (laneCount - 1) * baseSpacing / 2;
+      const offset = percentageSetting(this.settings.percussionVerticalOffset, 0, -100, 100) * height * .4;
+      const centeredLane = lane - (laneCount - 1) / 2;
+      return clamp(baseCenter + centeredLane * laneSpacing - offset, height * .04, height * .96);
     }
     const style = this.layerStyle(note.patternId);
     const rawOctaveOffset = Number(style.octaveOffset ?? 0);
@@ -132,7 +150,11 @@ export class Visualizer {
     const top = height * .106;
     const bottom = height * .688;
     const mapped = bottom - (key - 37) / 59 * (bottom - top);
-    return Math.max(height * .08, Math.min(height * .731, mapped + ((note.channel % 4) - 1.5) * height * .0029));
+    const baseY = clamp(mapped + ((note.channel % 4) - 1.5) * height * .0029, height * .08, height * .731);
+    const center = (top + bottom) / 2;
+    const zoom = percentageSetting(this.settings.melodyVerticalZoom, 100, 50, 220);
+    const offset = percentageSetting(this.settings.melodyVerticalOffset, 0, -100, 100) * height * .4;
+    return clamp(center + (baseY - center) * zoom - offset, height * .04, height * .96);
   }
 
   layerStyle(patternId) {
@@ -224,8 +246,14 @@ export class Visualizer {
 
   playheadStyle(width) {
     const thickness = Math.max(1, Math.min(12, Number(this.settings.playheadThickness) || 3));
+    const color = /^#[\da-f]{6}$/i.test(this.settings.playheadColor) ? this.settings.playheadColor : "#ff9d45";
+    const gradientStart = /^#[\da-f]{6}$/i.test(this.settings.playheadGradientStart) ? this.settings.playheadGradientStart : color;
+    const gradientEnd = /^#[\da-f]{6}$/i.test(this.settings.playheadGradientEnd) ? this.settings.playheadGradientEnd : color;
     return {
-      color: /^#[\da-f]{6}$/i.test(this.settings.playheadColor) ? this.settings.playheadColor : "#ff9d45",
+      color,
+      colorMode: this.settings.playheadColorMode === "gradient" ? "gradient" : "solid",
+      gradientStart,
+      gradientEnd,
       thickness: thickness * width / 1080,
       glow: Math.max(0, Math.min(1, Number(this.settings.playheadGlow ?? 55) / 100)),
       opacity: Math.max(.1, Math.min(1, Number(this.settings.playheadOpacity ?? 100) / 100)),
@@ -277,11 +305,20 @@ export class Visualizer {
     const top = height * .06;
     const bottom = height * .94;
     const gradient = context.createLinearGradient(hitX, top, hitX, bottom);
-    gradient.addColorStop(0, colorWithAlpha(style.color, 0));
-    gradient.addColorStop(.08, colorWithAlpha(style.color, .78));
-    gradient.addColorStop(.5, style.color);
-    gradient.addColorStop(.92, colorWithAlpha(style.color, .78));
-    gradient.addColorStop(1, colorWithAlpha(style.color, 0));
+    if (style.colorMode === "gradient") {
+      const middle = mixHexColors(style.gradientStart, style.gradientEnd);
+      gradient.addColorStop(0, colorWithAlpha(style.gradientStart, 0));
+      gradient.addColorStop(.08, colorWithAlpha(style.gradientStart, .78));
+      gradient.addColorStop(.5, colorWithAlpha(middle, 1));
+      gradient.addColorStop(.92, colorWithAlpha(style.gradientEnd, .78));
+      gradient.addColorStop(1, colorWithAlpha(style.gradientEnd, 0));
+    } else {
+      gradient.addColorStop(0, colorWithAlpha(style.color, 0));
+      gradient.addColorStop(.08, colorWithAlpha(style.color, .78));
+      gradient.addColorStop(.5, style.color);
+      gradient.addColorStop(.92, colorWithAlpha(style.color, .78));
+      gradient.addColorStop(1, colorWithAlpha(style.color, 0));
+    }
     context.strokeStyle = gradient;
     context.lineCap = "round";
     if (style.glow > 0) {

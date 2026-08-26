@@ -48,15 +48,23 @@ body{background:var(--bg);color:var(--text);scrollbar-color:#647179 #293136}
 .toast{border-color:#68757d;background:#364148;color:#f0f3f4;box-shadow:0 8px 28px #10171bcc}
 .pattern-swatch,.control-row input[type="color"],.stacked-control select,.transport-button.play,.button{transition:border-color .15s,background .15s,color .15s,box-shadow .15s}
 .layer-gradient-controls{margin-top:20px;padding-top:18px;border-top:1px solid #4b575e}.layer-gradient-controls.hidden{display:none}.layer-gradient-heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px}.layer-gradient-heading strong{font-size:12px;font-weight:650;color:#e1e6e8}.layer-gradient-heading span{font-size:10px;color:var(--muted)}.layer-gradient-controls .control-row{margin-bottom:5px}.layer-gradient-apply{height:36px;margin-top:9px}
-.playhead-customization,.shadow-customization{margin:-4px 0 16px;padding:6px 0 2px;border:0;border-top:1px solid #4b575e}.playhead-customization:disabled,.shadow-customization:disabled{opacity:.42}.playhead-customization .stacked-control,.shadow-customization .stacked-control{margin:13px 0}.playhead-customization .control-row,.shadow-customization .control-row{margin-bottom:5px}
+.settings-section > .section-summary,.customization-summary{list-style:none;cursor:pointer;user-select:none}.settings-section > .section-summary::-webkit-details-marker,.customization-group > .customization-summary::-webkit-details-marker{display:none}.settings-section > .section-summary::marker,.customization-group > .customization-summary::marker{content:""}.settings-section > .section-summary{display:flex;align-items:center;gap:10px;min-height:28px;margin:0 0 18px}.settings-section > .section-summary h2{min-width:0;flex:1;margin:0}.section-summary-meta{color:var(--muted);font-size:10px;white-space:nowrap}.settings-section > .section-summary::after,.customization-group > .customization-summary::after{content:"";width:7px;height:7px;flex:0 0 7px;border-right:1.5px solid #b8c1c5;border-bottom:1.5px solid #b8c1c5;transform:rotate(-45deg);transition:transform .15s ease}.settings-section[open] > .section-summary::after,.customization-group[open] > .customization-summary::after{transform:rotate(45deg)}.settings-section:not([open]) > .section-summary{margin-bottom:0}.rail-section-content{min-width:0;padding-bottom:1px}.customization-group{margin:0 0 10px;border:1px solid #4b575e;border-radius:5px;background:#2d363c;overflow:hidden}.customization-group:last-child{margin-bottom:0}.customization-summary{display:flex;align-items:center;gap:10px;min-height:39px;padding:9px 11px;background:#303a40}.customization-summary>span{min-width:0;flex:1;overflow:hidden;color:#e1e6e8;font-size:12px;font-weight:650;text-overflow:ellipsis;white-space:nowrap}.customization-summary small{color:var(--muted);font-size:10px;white-space:nowrap}.customization-group[open] > .customization-summary{border-bottom:1px solid #4b575e}.customization-group-content{min-width:0;padding:1px 11px 11px}.global-preset-controls{margin:0;padding:0;border:0}.preset-heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:1px}.preset-heading strong{font-size:11px;font-weight:700;color:#e1e6e8;letter-spacing:.04em}.preset-heading span,.preset-hint{color:var(--muted);font-size:10px}.global-preset-controls .stacked-control{margin:13px 0}.preset-name-row{display:flex;align-items:center;gap:7px}.preset-name-row input[type="text"]{min-width:0;flex:1;height:38px;border:1px solid #59666d;border-radius:4px;padding:0 10px;background:#252d32;color:#e6ebed;font:12px inherit}.preset-name-row input[type="text"]::placeholder{color:#87939a}.preset-name-row .button{width:auto;flex:0 0 auto;height:38px;margin:0;padding:0 12px}.preset-action-row{display:flex;gap:7px}.preset-action-row .button{flex:1;height:36px;margin:8px 0 0;padding:0 9px;font-size:11px}.preset-hint{display:block;margin-top:9px;line-height:1.4}
+.playhead-customization,.shadow-customization{margin:0 0 8px;padding:6px 0 2px;border:0;border-top:1px solid #4b575e}.playhead-customization:disabled,.shadow-customization:disabled{opacity:.42}.playhead-customization .stacked-control,.shadow-customization .stacked-control{margin:13px 0}.playhead-customization .control-row,.shadow-customization .control-row{margin-bottom:5px}
+.export-size-hint{display:block;margin:-7px 0 5px;color:var(--muted);font-size:10px;line-height:1.4}
 .playhead-offset-control{gap:7px!important}.playhead-offset-control small{color:var(--muted);font-size:10px}.reset-playhead-offset{height:34px;margin:0 0 14px!important;font-size:11px!important}
 button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #ffc06f;outline-offset:2px}
+.settings-section > .section-summary:focus-visible,.customization-group > .customization-summary:focus-visible{outline:2px solid #ffc06f;outline-offset:2px;border-radius:3px}
+.note-axis-group{min-width:0;margin:17px 0 0;padding:10px 0 0;border:0;border-top:1px solid #4b575e}.note-axis-group legend{padding:0;color:#e1e6e8;font-size:11px;font-weight:650}.note-axis-group .stacked-control{margin:13px 0}.note-axis-offset-control{gap:7px!important}.note-axis-offset-control small{color:var(--muted);font-size:10px}
 
 .preview-frame:fullscreen{
+  position:fixed;
+  inset:0;
   display:grid;
   place-items:center;
   width:100vw;
   height:100vh;
+  min-width:0;
+  min-height:0;
   max-width:none;
   max-height:none;
   aspect-ratio:auto;
@@ -64,14 +72,15 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
   background:#222a2f;
   box-shadow:none;
 }
+.preview-frame:fullscreen::backdrop{background:#222a2f}
 .preview-frame:fullscreen canvas{
-  width:auto;
-  height:auto;
-  max-width:100%;
-  max-height:100%;
+  width:100%;
+  height:100%;
+  max-width:none;
+  max-height:none;
   object-fit:contain;
+  object-position:center;
 }
-
 .background-solid-controls.hidden,.background-gradient-controls.hidden,.background-image-controls.hidden{display:none}
 .background-image-button{display:flex;align-items:center;justify-content:center}
 .background-image-button input{display:none}

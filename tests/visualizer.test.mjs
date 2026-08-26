@@ -52,7 +52,10 @@ test("layer styles support independent colors, opacity, and note animations", ()
   assert.equal(visualizer.noteHighlightOpacity(note, note.length), 0, "Finished notes should not remain highlighted.");
 
   Object.assign(settings, { playheadColor: "#123456", playheadThickness: 20, playheadGlow: 125, playheadOpacity: 5 });
-  assert.deepEqual(visualizer.playheadStyle(1080), { color: "#123456", thickness: 12, glow: 1, opacity: .1 });
+  assert.deepEqual(visualizer.playheadStyle(1080), {
+    color: "#123456", colorMode: "solid", gradientStart: "#123456", gradientEnd: "#123456",
+    thickness: 12, glow: 1, opacity: .1,
+  });
   settings.playheadOffset = 12;
   assert.equal(visualizer.playheadPosition(1080), 1080 * .56, "Portrait offsets should move the playhead right for positive values.");
   settings.playheadOffset = 0;
@@ -167,8 +170,8 @@ test("layer parallax makes foreground layers travel faster than background layer
 
 test("fullscreen preview contains the canvas without stretching", async () => {
   const styles = await readFile(new URL("../styles.css", import.meta.url), "utf8");
-  assert.match(styles, /\.preview-frame:fullscreen\s*\{[^}]*width:\s*100vw;[^}]*height:\s*100vh;[^}]*aspect-ratio:\s*auto;/s);
-  assert.match(styles, /\.preview-frame:fullscreen\s+canvas\s*\{[^}]*width:\s*auto;[^}]*height:\s*auto;[^}]*max-width:\s*100%;[^}]*max-height:\s*100%;[^}]*object-fit:\s*contain;/s);
+  assert.match(styles, /\.preview-frame:fullscreen\s*\{[^}]*position:\s*fixed;[^}]*width:\s*100vw;[^}]*height:\s*100vh;[^}]*aspect-ratio:\s*auto;/s);
+  assert.match(styles, /\.preview-frame:fullscreen\s+canvas\s*\{[^}]*width:\s*100%;[^}]*height:\s*100%;[^}]*max-width:\s*none;[^}]*max-height:\s*none;[^}]*object-fit:\s*contain;/s);
 });
 
 test("background image fitting preserves aspect ratio", () => {

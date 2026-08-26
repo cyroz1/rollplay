@@ -1,8 +1,9 @@
 import { parseFlp } from "./flp-parser.js";
 import { createMidi } from "./midi-export.js";
 import { Visualizer, createLayerStyle } from "./visualizer.js";
-import { renderMp4 } from "./exporter.js";
+import { autoVideoBitrate, renderMp4 } from "./exporter.js";
 import { createColorRamp } from "./color-utils.js";
+import { findPresetRecord, readPresetRecords, removePresetRecord, upsertPresetRecord, writePresetRecords } from "./preset-store.js";
 
 const element = id => document.getElementById(id);
 const state = {
@@ -30,10 +31,17 @@ const state = {
     backgroundImageFit: "cover",
     noteSize: 145,
     barsVisible: 3,
+    melodyVerticalZoom: 100,
+    melodyVerticalOffset: 0,
+    percussionVerticalZoom: 100,
+    percussionVerticalOffset: 0,
     framePreset: "portrait",
     playhead: true,
     playheadOffset: 0,
     playheadColor: "#ff9d45",
+    playheadColorMode: "solid",
+    playheadGradientStart: "#ff9d45",
+    playheadGradientEnd: "#a78bef",
     playheadThickness: 3,
     playheadGlow: 55,
     playheadOpacity: 100,
@@ -47,7 +55,7 @@ const state = {
     parallaxStrength: 100,
     resolution: "1080x1920",
     fps: 60,
-    maxSize: 20,
+    maxSize: "auto",
     enabledPatterns: new Set(),
     trackModes: new Map(),
     layerStyles: new Map(),
@@ -55,9 +63,21 @@ const state = {
   },
 };
 
+const presetStorage = (() => {
+  try { return window.localStorage; }
+  catch { return null; }
+})();
+let customizationPresets = readPresetRecords(presetStorage);
+let selectedCustomizationPreset = "";
+
 function formatTime(seconds) {
   const safe = Math.max(0, Math.floor(seconds || 0));
   return `${Math.floor(safe / 60)}:${String(safe % 60).padStart(2, "0")}`;
+}
+
+function formatSignedPercent(value) {
+  const amount = Number(value) || 0;
+  return `${amount > 0 ? "+" : amount < 0 ? "−" : ""}${Math.abs(amount)}%`;
 }
 
 function notify(message, timeout = 3200) {
@@ -81,6 +101,126 @@ function refreshBackgroundControls() {
   element("background-gradient-angle-value").value = `${state.settings.backgroundGradientAngle}°`;
   element("background-image-fit-input").value = state.settings.backgroundImageFit;
   element("background-image-name").textContent = state.settings.backgroundImageName || "No image selected";
+}
+
+function refreshPlayheadControls() {
+  const mode = state.settings.playheadColorMode === "gradient" ? "gradient" : "solid";
+  element("playhead-color-mode-input").value = mode;
+  element("playhead-color-input").value = state.settings.playheadColor;
+  element("playhead-gradient-start-input").value = state.settings.playheadGradientStart;
+  element("playhead-gradient-end-input").value = state.settings.playheadGradientEnd;
+  element("playhead-solid-color-controls").classList.toggle("hidden", mode !== "solid");
+  element("playhead-gradient-color-controls").classList.toggle("hidden", mode !== "gradient");
+}
+
+function refreshSizeHint() {
+  const value = element("size-input").value;
+  const hint = element("size-hint");
+  if (value === "auto") {
+    const [width, height] = state.settings.resolution.split("x").map(Number);
+    const bitrate = autoVideoBitrate(width, height, state.settings.fps);
+    hint.textContent = `Auto · ${(bitrate / 1_000_000).toFixed(1)} Mbps at ${state.settings.fps} FPS`;
+  } else {
+    hint.textContent = `Targets a maximum file size of ${value} MB`;
+  }
+}
+
+function refreshNoteAxisControls() {
+  for (const [id, key, outputId, signed, fallback] of [
+    ["melody-vertical-zoom-input", "melodyVerticalZoom", "melody-vertical-zoom-value", false, 100],
+    ["melody-vertical-offset-input", "melodyVerticalOffset", "melody-vertical-offset-value", true, 0],
+    ["percussion-vertical-zoom-input", "percussionVerticalZoom", "percussion-vertical-zoom-value", false, 100],
+    ["percussion-vertical-offset-input", "percussionVerticalOffset", "percussion-vertical-offset-value", true, 0],
+  ]) {
+    const raw = Number(state.settings[key]);
+    const value = Number.isFinite(raw) ? raw : fallback;
+    element(id).value = String(value);
+    element(outputId).value = signed ? formatSignedPercent(value) : `${value}%`;
+  }
+}
+
+function refreshPresetControls() {
+  const select = element("customization-preset-input");
+  select.replaceChildren();
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = customizationPresets.length ? "Select a saved preset" : "No saved presets";
+  select.append(placeholder);
+  for (const preset of customizationPresets) {
+    const option = document.createElement("option");
+    option.value = preset.name;
+    option.textContent = preset.name;
+    select.append(option);
+  }
+  const selected = findPresetRecord(customizationPresets, selectedCustomizationPreset);
+  selectedCustomizationPreset = selected?.name || "";
+  select.value = selectedCustomizationPreset;
+  select.disabled = customizationPresets.length === 0;
+  element("preset-name-input").value = selected?.name || "";
+  element("apply-preset-button").disabled = !selected;
+  element("delete-preset-button").disabled = !selected;
+}
+
+function persistCustomizationPresets() {
+  if (!presetStorage) {
+    notify("Presets are unavailable in this browser.", 5000);
+    return false;
+  }
+  try {
+    writePresetRecords(presetStorage, customizationPresets);
+    return true;
+  } catch (error) {
+    notify("Unable to save presets in this browser.", 5000);
+    console.error(error);
+    return false;
+  }
+}
+
+function saveCustomizationPreset() {
+  const name = element("preset-name-input").value.trim();
+  if (!name) {
+    notify("Enter a name for this customization preset.");
+    element("preset-name-input").focus();
+    return;
+  }
+  const previous = customizationPresets;
+  const result = upsertPresetRecord(customizationPresets, name, state.settings);
+  customizationPresets = result.records;
+  if (!persistCustomizationPresets()) {
+    customizationPresets = previous;
+    refreshPresetControls();
+    return;
+  }
+  selectedCustomizationPreset = result.record.name;
+  refreshPresetControls();
+  notify(`${result.updated ? "Updated" : "Saved"} preset · ${result.record.name}`);
+}
+
+function applyCustomizationPreset() {
+  const record = findPresetRecord(customizationPresets, selectedCustomizationPreset);
+  if (!record) return;
+  Object.assign(state.settings, record.settings);
+  const imageUnavailable = record.settings.backgroundMode === "image" && !state.settings.backgroundImage;
+  if (imageUnavailable) state.settings.backgroundMode = "solid";
+  refreshSettingsControls();
+  notify(imageUnavailable
+    ? `Applied preset · ${record.name} (re-import its background image to restore it)`
+    : `Applied preset · ${record.name}`);
+}
+
+function deleteCustomizationPreset() {
+  const record = findPresetRecord(customizationPresets, selectedCustomizationPreset);
+  if (!record || !window.confirm(`Delete the “${record.name}” preset?`)) return;
+  const previous = customizationPresets;
+  customizationPresets = removePresetRecord(customizationPresets, record.name);
+  if (!persistCustomizationPresets()) {
+    customizationPresets = previous;
+    refreshPresetControls();
+    return;
+  }
+  selectedCustomizationPreset = "";
+  refreshPresetControls();
+  notify(`Deleted preset · ${record.name}`);
 }
 
 async function loadBackgroundImage(file) {
@@ -218,6 +358,11 @@ function refreshLayerStyleControls() {
   element("mixed-hint").classList.toggle("hidden", !Object.values(values).some(value => value == null));
 }
 
+function openSettingsSection(id) {
+  const section = element(id);
+  if (section?.tagName === "DETAILS") section.open = true;
+}
+
 function updatePatternSelection(patternId, selected, extendRange = false) {
   const order = state.settings.layerOrder;
   if (extendRange && state.lastSelectedPatternId != null) {
@@ -234,6 +379,7 @@ function updatePatternSelection(patternId, selected, extendRange = false) {
   state.lastSelectedPatternId = patternId;
   refreshPatterns();
   refreshLayerStyleControls();
+  if (state.selectedPatternIds.size) openSettingsSection("layer-style-section");
 }
 
 function selectOnlyPattern(patternId) {
@@ -241,6 +387,7 @@ function selectOnlyPattern(patternId) {
   state.lastSelectedPatternId = patternId;
   refreshPatterns();
   refreshLayerStyleControls();
+  openSettingsSection("layer-style-section");
 }
 
 function applyLayerStyle(property, value) {
@@ -462,6 +609,13 @@ function applyFrameSettings(resolution, preset) {
   element("resolution-input").value = resolution;
   element("frame-preset-input").value = preset;
   element("zoom-axis-label").textContent = preset === "landscape" ? "Vertical zoom" : "Horizontal zoom";
+  const noteAxis = preset === "landscape" ? "horizontal" : "vertical";
+  const noteOffsetHint = preset === "landscape" ? "− right · + left" : "− down · + up";
+  for (const type of ["melody", "percussion"]) {
+    element(`${type}-vertical-zoom-label`).textContent = `${type[0].toUpperCase()}${type.slice(1)} ${noteAxis} zoom`;
+    element(`${type}-vertical-offset-label`).textContent = `${type[0].toUpperCase()}${type.slice(1)} ${noteAxis} offset`;
+    element(`${type}-vertical-offset-hint`).textContent = noteOffsetHint;
+  }
   const offsetAxis = preset === "landscape" ? "Vertical" : "Horizontal";
   const offsetDirection = preset === "landscape" ? "− bottom · + top" : "− left · + right";
   element("playhead-offset-label").textContent = `${offsetAxis} offset`;
@@ -471,7 +625,53 @@ function applyFrameSettings(resolution, preset) {
   const canvas = element("preview");
   canvas.width = width;
   canvas.height = height;
+  refreshSizeHint();
   state.visualizer?.draw(currentPosition());
+}
+
+function refreshSettingsControls() {
+  const noteSize = Number(state.settings.noteSize) || 100;
+  const barsVisible = Number(state.settings.barsVisible) || 1;
+  const offset = Number(state.settings.playheadOffset) || 0;
+  refreshNoteAxisControls();
+  element("note-size-input").value = String(noteSize);
+  element("note-size-value").value = `${noteSize}%`;
+  element("bars-visible-input").value = String(barsVisible);
+  element("bars-visible-value").value = `${barsVisible} ${barsVisible === 1 ? "bar" : "bars"}`;
+  element("playhead-input").checked = Boolean(state.settings.playhead);
+  element("playhead-customization").disabled = !state.settings.playhead;
+  element("playhead-offset-input").value = String(offset);
+  element("playhead-offset-value").value = `${offset > 0 ? "+" : ""}${offset}%`;
+  for (const [id, key, outputId, suffix] of [
+    ["playhead-thickness-input", "playheadThickness", "playhead-thickness-value", ""],
+    ["playhead-glow-input", "playheadGlow", "playhead-glow-value", "%"],
+    ["playhead-opacity-input", "playheadOpacity", "playhead-opacity-value", "%"],
+  ]) {
+    const value = Number(state.settings[key]);
+    element(id).value = String(value);
+    element(outputId).value = `${value}${suffix}`;
+  }
+  element("effects-input").checked = Boolean(state.settings.effects);
+  element("percussion-input").checked = Boolean(state.settings.percussion);
+  element("layer-shadows-input").checked = Boolean(state.settings.layerShadows);
+  element("shadow-customization").disabled = !state.settings.layerShadows;
+  for (const [id, key, outputId] of [
+    ["shadow-depth-input", "shadowDepth", "shadow-depth-value"],
+    ["shadow-opacity-input", "shadowOpacity", "shadow-opacity-value"],
+  ]) {
+    const value = Number(state.settings[key]);
+    element(id).value = String(value);
+    element(outputId).value = `${value}%`;
+  }
+  element("layer-parallax-input").checked = Boolean(state.settings.layerParallax);
+  element("parallax-strength-input").disabled = !state.settings.layerParallax;
+  element("parallax-strength-input").value = String(state.settings.parallaxStrength);
+  element("parallax-strength-value").value = `${state.settings.parallaxStrength}%`;
+  element("fps-input").value = String(state.settings.fps);
+  element("size-input").value = String(state.settings.maxSize);
+  refreshBackgroundControls();
+  refreshPlayheadControls();
+  applyFrameSettings(state.settings.resolution, state.settings.framePreset);
 }
 
 function bindControls() {
@@ -484,7 +684,19 @@ function bindControls() {
   element("play-button").onclick = () => setPlaying(!state.playing);
   element("restart-button").onclick = () => seek(0);
   element("timeline").oninput = event => seek(Number(event.target.value) / 1000 * state.project.duration);
-  element("fullscreen-button").onclick = () => element("preview-frame").requestFullscreen?.();
+  element("fullscreen-button").onclick = async () => {
+    const frame = element("preview-frame");
+    try {
+      if (document.fullscreenElement === frame) await document.exitFullscreen?.();
+      else await frame.requestFullscreen?.();
+    } catch (error) {
+      notify(`Unable to enter fullscreen: ${error.message}`, 5000);
+    }
+  };
+  document.addEventListener("fullscreenchange", () => {
+    const active = document.fullscreenElement === element("preview-frame");
+    element("fullscreen-button").setAttribute("aria-label", active ? "Exit fullscreen preview" : "Fullscreen preview");
+  });
   element("render-button").onclick = exportVideo;
   element("header-export").onclick = () => state.project ? exportVideo() : notify("Load an FLP project first.");
   element("midi-button").onclick = () => download(new Blob([createMidi(state.project, state.settings.enabledPatterns)], { type: "audio/midi" }), `${state.fileName}.mid`);
@@ -530,6 +742,19 @@ function bindControls() {
     element("bars-visible-value").value = `${bars} ${bars === 1 ? "bar" : "bars"}`;
     state.visualizer?.draw(currentPosition());
   };
+  for (const [id, key, outputId, signed] of [
+    ["melody-vertical-zoom-input", "melodyVerticalZoom", "melody-vertical-zoom-value", false],
+    ["melody-vertical-offset-input", "melodyVerticalOffset", "melody-vertical-offset-value", true],
+    ["percussion-vertical-zoom-input", "percussionVerticalZoom", "percussion-vertical-zoom-value", false],
+    ["percussion-vertical-offset-input", "percussionVerticalOffset", "percussion-vertical-offset-value", true],
+  ]) {
+    element(id).oninput = event => {
+      const value = Number(event.target.value);
+      state.settings[key] = value;
+      element(outputId).value = signed ? formatSignedPercent(value) : `${value}%`;
+      state.visualizer?.draw(currentPosition());
+    };
+  }
   element("playhead-input").onchange = event => {
     state.settings.playhead = event.target.checked;
     element("playhead-customization").disabled = !event.target.checked;
@@ -547,7 +772,14 @@ function bindControls() {
     element("playhead-offset-value").value = "0%";
     state.visualizer?.draw(currentPosition());
   };
+  element("playhead-color-mode-input").onchange = event => {
+    state.settings.playheadColorMode = event.target.value;
+    refreshPlayheadControls();
+    state.visualizer?.draw(currentPosition());
+  };
   element("playhead-color-input").oninput = event => { state.settings.playheadColor = event.target.value; state.visualizer?.draw(currentPosition()); };
+  element("playhead-gradient-start-input").oninput = event => { state.settings.playheadGradientStart = event.target.value; state.visualizer?.draw(currentPosition()); };
+  element("playhead-gradient-end-input").oninput = event => { state.settings.playheadGradientEnd = event.target.value; state.visualizer?.draw(currentPosition()); };
   for (const [id, key, outputId, suffix] of [
     ["playhead-thickness-input", "playheadThickness", "playhead-thickness-value", ""],
     ["playhead-glow-input", "playheadGlow", "playhead-glow-value", "%"],
@@ -610,11 +842,24 @@ function bindControls() {
     const [width, height] = event.target.value.split("x").map(Number);
     applyFrameSettings(event.target.value, width > height ? "landscape" : "portrait");
   };
-  element("fps-input").onchange = event => { state.settings.fps = Number(event.target.value); };
-  element("size-input").onchange = event => { state.settings.maxSize = Number(event.target.value); };
+  element("fps-input").onchange = event => { state.settings.fps = Number(event.target.value); refreshSizeHint(); };
+  element("size-input").onchange = event => {
+    state.settings.maxSize = event.target.value === "auto" ? "auto" : Number(event.target.value);
+    refreshSizeHint();
+  };
+  element("customization-preset-input").onchange = event => {
+    selectedCustomizationPreset = event.target.value;
+    refreshPresetControls();
+  };
+  element("save-preset-button").onclick = saveCustomizationPreset;
+  element("apply-preset-button").onclick = applyCustomizationPreset;
+  element("delete-preset-button").onclick = deleteCustomizationPreset;
   document.querySelectorAll(".nav-link").forEach(button => button.onclick = () => {
     document.querySelectorAll(".nav-link").forEach(item => item.classList.toggle("active", item === button));
-    if (button.dataset.tab === "export") element("export-section").scrollIntoView({ behavior: "smooth", block: "nearest" });
+    if (button.dataset.tab === "export") {
+      openSettingsSection("export-section");
+      element("export-section").scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
   });
   document.addEventListener("keydown", event => {
     if (event.code === "Space" && !/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) { event.preventDefault(); setPlaying(!state.playing); }
@@ -632,5 +877,9 @@ function animationLoop() {
 
 bindControls();
 refreshBackgroundControls();
+refreshPlayheadControls();
+refreshNoteAxisControls();
+refreshSizeHint();
+refreshPresetControls();
 requestAnimationFrame(animationLoop);
 window.__ROLLPLAY__ = { state, loadFlp, loadAudio, seek, setPlaying, exportVideo, parseFlp, createMidi, movePatternLayer };
