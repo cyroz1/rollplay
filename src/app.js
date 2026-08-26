@@ -80,6 +80,19 @@ function formatSignedPercent(value) {
   return `${amount > 0 ? "+" : amount < 0 ? "−" : ""}${Math.abs(amount)}%`;
 }
 
+function normalizeBarsVisible(value) {
+  const raw = Number(value);
+  if (!Number.isFinite(raw)) return 1;
+  return Math.round(Math.max(0.25, Math.min(8, raw)) / 0.25) * 0.25;
+}
+
+function formatBarsVisible(value) {
+  const bars = normalizeBarsVisible(value);
+  if (bars === 0.25) return "¼ bar";
+  if (bars === 0.5) return "½ bar";
+  return `${bars} ${bars === 1 ? "bar" : "bars"}`;
+}
+
 function notify(message, timeout = 3200) {
   const toast = element("toast");
   toast.textContent = message;
@@ -631,13 +644,14 @@ function applyFrameSettings(resolution, preset) {
 
 function refreshSettingsControls() {
   const noteSize = Number(state.settings.noteSize) || 100;
-  const barsVisible = Number(state.settings.barsVisible) || 1;
+  const barsVisible = normalizeBarsVisible(state.settings.barsVisible);
+  state.settings.barsVisible = barsVisible;
   const offset = Number(state.settings.playheadOffset) || 0;
   refreshNoteAxisControls();
   element("note-size-input").value = String(noteSize);
   element("note-size-value").value = `${noteSize}%`;
   element("bars-visible-input").value = String(barsVisible);
-  element("bars-visible-value").value = `${barsVisible} ${barsVisible === 1 ? "bar" : "bars"}`;
+  element("bars-visible-value").value = formatBarsVisible(barsVisible);
   element("playhead-input").checked = Boolean(state.settings.playhead);
   element("playhead-customization").disabled = !state.settings.playhead;
   element("playhead-offset-input").value = String(offset);
@@ -737,9 +751,10 @@ function bindControls() {
   };
   element("note-size-input").oninput = event => { state.settings.noteSize = Number(event.target.value); element("note-size-value").value = `${event.target.value}%`; state.visualizer?.draw(currentPosition()); };
   element("bars-visible-input").oninput = event => {
-    const bars = Number(event.target.value);
+    const bars = normalizeBarsVisible(event.target.value);
     state.settings.barsVisible = bars;
-    element("bars-visible-value").value = `${bars} ${bars === 1 ? "bar" : "bars"}`;
+    element("bars-visible-input").value = String(bars);
+    element("bars-visible-value").value = formatBarsVisible(bars);
     state.visualizer?.draw(currentPosition());
   };
   for (const [id, key, outputId, signed] of [

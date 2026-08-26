@@ -14,7 +14,7 @@ A dependency-free, browser-native FL Studio project visualizer, MIDI exporter, a
 - Switches any track independently between melodic piano-roll bars and step-percussion diamond rendering.
 - Reorders track layers with drag-and-drop or up/down controls, keeping previews, hit effects, and exported video in sync.
 - Selects one or many layers for shared solid or gradient colors, transparency, octave offsets, note motion, and particle animation styles.
-- Adjusts horizontal zoom from one to eight visible bars, changing piano-roll scale and perceived scroll speed in previews and exports.
+- Adjusts horizontal zoom from one-quarter to eight visible bars, including half-bar and quarter-bar views, changing piano-roll scale and perceived scroll speed in previews and exports.
 - Loads MP3, WAV, OGG, FLAC, and other browser-supported audio formats.
 - Exports standards-compliant multi-track MIDI with project tempo.
 - Renders H.264/AAC MP4 directly in supported browsers using WebCodecs and a built-in ISO BMFF multiplexer.

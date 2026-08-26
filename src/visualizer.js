@@ -120,7 +120,8 @@ export class Visualizer {
   }
 
   pixelsPerTick(width = this.canvas.width) {
-    const barsVisible = Math.max(1, Math.min(8, Number(this.settings.barsVisible) || 3));
+    const rawBarsVisible = Number(this.settings.barsVisible);
+    const barsVisible = Number.isFinite(rawBarsVisible) ? Math.max(.25, Math.min(8, rawBarsVisible)) : 3;
     return width / (this.project.ppq * 4 * barsVisible);
   }
 

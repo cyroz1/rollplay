@@ -270,7 +270,7 @@ test("track layer order determines which overlapping notes render on top", async
   assert.ok(purpleOnTop[2] > purpleOnTop[0], "Moving the second track above the first should change the visible overlap.");
 });
 
-test("horizontal zoom changes the visible range from one to eight bars", async context => {
+test("horizontal zoom changes the visible range from a quarter to eight bars", async context => {
   let createCanvas;
   try { ({ createCanvas } = createRequire(import.meta.url)("@napi-rs/canvas")); }
   catch { context.skip("Optional native canvas package is not installed."); return; }
@@ -297,6 +297,35 @@ test("horizontal zoom changes the visible range from one to eight bars", async c
   assert.equal(eightBars * project.ppq * 4 * 8, 1080);
   assert.equal(oneBar / eightBars, 8, "Zooming from one to eight bars should change scrolling speed eightfold.");
   visualizer.draw(0);
+});
+
+test("horizontal zoom supports quarter-bar and half-bar views", () => {
+  const note = { at: 0, length: 96, key: 60, channel: 0, velocity: 100, patternId: 1 };
+  const project = {
+    tempo: 120, ppq: 96,
+    patterns: [{ id: 1, name: "Lead", notes: [note] }],
+    notes: [note],
+  };
+  const canvas = { width: 1080, height: 1920, getContext: () => ({}) };
+  const settings = { barsVisible: 0.25 };
+  const visualizer = new Visualizer(canvas, project, settings);
+  const quarterBar = visualizer.pixelsPerTick(1080);
+
+  settings.barsVisible = 0.5;
+  const halfBar = visualizer.pixelsPerTick(1080);
+  settings.barsVisible = 1;
+  const oneBar = visualizer.pixelsPerTick(1080);
+
+  assert.equal(quarterBar / oneBar, 4);
+  assert.equal(halfBar / oneBar, 2);
+});
+
+test("horizontal zoom control exposes quarter-bar increments", async () => {
+  const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
+  const input = html.match(/<input id="bars-visible-input"[^>]*>/)?.[0] || "";
+  assert.match(input, /min="0\.25"/);
+  assert.match(input, /max="8"/);
+  assert.match(input, /step="0\.25"/);
 });
 
 test("landscape preset drops notes toward a centered horizontal playhead", async context => {
