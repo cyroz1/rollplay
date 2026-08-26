@@ -4,23 +4,117 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#3f4b52" />
-    <meta name="description" content="Turn FL Studio projects into colorful MIDI visualizers and render MP4 videos in your browser." />
-    <link rel="icon" type="image/png" sizes="256x256" href="favicon.png" />
-    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png" />
-    <title>ROLLPLAY — FLP Visualizer</title>
+    <meta name="application-name" content="ROLLPLAY" />
+    <meta name="author" content="ROLLPLAY" />
+    <meta name="description" content="Turn FL Studio FLP projects into animated piano-roll visualizers, export MIDI, and render MP4 music videos locally in your browser." />
+    <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1" />
+    <link rel="canonical" href="https://rollplay.cc/" />
+    <link rel="alternate" type="text/plain" href="https://rollplay.cc/llms.txt" title="AI-readable site summary" />
+    <link rel="icon" type="image/png" sizes="256x256" href="/favicon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://rollplay.cc/" />
+    <meta property="og:site_name" content="ROLLPLAY" />
+    <meta property="og:title" content="ROLLPLAY - FLP Visualizer, MIDI &amp; MP4 Exporter" />
+    <meta property="og:description" content="Turn FL Studio FLP projects into animated piano-roll visualizers, export MIDI, and render MP4 music videos locally in your browser." />
+    <meta property="og:locale" content="en_US" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="ROLLPLAY - FLP Visualizer, MIDI &amp; MP4 Exporter" />
+    <meta name="twitter:description" content="Turn FL Studio FLP projects into animated piano-roll visualizers, export MIDI, and render MP4 music videos locally in your browser." />
+    <title>ROLLPLAY - FLP Visualizer, MIDI &amp; MP4 Exporter</title>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://rollplay.cc/#website",
+            "url": "https://rollplay.cc/",
+            "name": "ROLLPLAY",
+            "description": "A browser-native FL Studio FLP visualizer, MIDI exporter, and MP4 music-video renderer.",
+            "inLanguage": "en-US"
+          },
+          {
+            "@type": "SoftwareApplication",
+            "@id": "https://rollplay.cc/#software",
+            "url": "https://rollplay.cc/",
+            "name": "ROLLPLAY",
+            "description": "Turn FL Studio FLP projects into animated piano-roll visualizers, export MIDI, and render MP4 music videos locally in your browser.",
+            "applicationCategory": "MultimediaApplication",
+            "applicationSubCategory": "Music production software",
+            "operatingSystem": "Web browser",
+            "browserRequirements": "A modern web browser; MP4 rendering requires WebCodecs support.",
+            "featureList": [
+              "FL Studio FLP project parsing",
+              "Animated piano-roll visualization",
+              "MIDI export",
+              "MP4 video rendering",
+              "Portrait, landscape, and square exports",
+              "Local browser processing"
+            ],
+            "isAccessibleForFree": true,
+            "creator": {
+              "@type": "Organization",
+              "name": "ROLLPLAY",
+              "url": "https://rollplay.cc/"
+            }
+          },
+          {
+            "@type": "FAQPage",
+            "@id": "https://rollplay.cc/#faq",
+            "url": "https://rollplay.cc/#faq",
+            "mainEntity": [
+              {
+                "@type": "Question",
+                "name": "What is ROLLPLAY?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "ROLLPLAY is a browser-based FL Studio FLP visualizer that turns project notes and arrangements into an animated piano-roll preview and shareable music video."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "How does ROLLPLAY handle my files?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "ROLLPLAY parses FLP projects and audio in your browser. Your project, audio, and generated exports are not uploaded to a server."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "What can I export from ROLLPLAY?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "You can download standards-compliant MIDI files and render H.264/AAC MP4 videos in supported browsers. Exports can be portrait, landscape, or square at 24, 30, or 60 FPS."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Which browsers support MP4 rendering?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "MP4 rendering requires a Chromium-based browser with WebCodecs, H.264 VideoEncoder, and AAC AudioEncoder support. Project parsing, preview, playback, and MIDI export work in current browsers."
+                }
+              }
+            ]
+          }
+        ]
+      }
+    </script>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <header class="topbar">
-      <a class="brand" href="#">ROLLPLAY<span>.</span></a>
+      <a class="brand" href="/" aria-label="ROLLPLAY home">ROLLPLAY<span>.</span></a>
       <nav class="nav" aria-label="Main navigation">
-        <button class="nav-link active" data-tab="visualizer">Visualizer</button>
-        <button class="nav-link" data-tab="export">Export</button>
+        <a class="nav-link active" data-tab="visualizer" href="#visualizer">Visualizer</a>
+        <a class="nav-link" data-tab="export" href="#export-section">Export</a>
       </nav>
       <button class="button button-primary top-export" id="header-export">Export MP4</button>
     </header>
 
-    <main class="workspace">
+    <main>
+    <div class="workspace">
       <aside class="rail project-rail" aria-label="Project settings">
         <section class="rail-section">
           <h2>PROJECT</h2>
@@ -53,10 +147,10 @@
         </section>
       </aside>
 
-      <section class="stage" aria-label="Visualizer preview">
+      <section class="stage" id="visualizer" aria-label="Visualizer preview">
         <div class="preview-area" id="preview-area">
-          <div class="preview-frame" id="preview-frame"><canvas id="preview" width="1080" height="1920"></canvas></div>
-          <div class="empty-state" id="empty-state"><h1>Give your music<br />a shape.</h1><p>Drop an FL Studio project to begin.</p><label class="button button-primary" for="flp-input">Choose FLP file</label></div>
+          <div class="preview-frame" id="preview-frame"><canvas id="preview" width="1080" height="1920" role="img" aria-label="Animated piano-roll visualizer preview"></canvas></div>
+          <div class="empty-state" id="empty-state"><h1>Turn FL Studio projects<br />into moving music.</h1><p>Visualize FLP files, export MIDI, and render MP4 videos in your browser.</p><label class="button button-primary" for="flp-input">Choose FLP file</label></div>
         </div>
         <div class="transport">
           <button class="transport-button play" id="play-button" aria-label="Play" disabled><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
@@ -143,8 +237,84 @@
           <div class="render-progress hidden" id="render-progress"><div class="progress-track"><div id="progress-fill"></div></div><span id="progress-label">Preparing…</span></div>
         </section>
       </aside>
+    </div>
+
+    <section class="site-content" aria-labelledby="site-content-title">
+      <div class="site-content-inner">
+        <p class="site-kicker">BROWSER-NATIVE MUSIC TOOL</p>
+        <h2 id="site-content-title">Bring FL Studio projects to life.</h2>
+        <p class="site-lede">ROLLPLAY is a private, browser-based FLP visualizer for producers who want to turn a piano roll into a shareable music video. Load a project, shape its layers, and export the result without uploading your files.</p>
+
+        <div class="site-feature-grid" aria-label="ROLLPLAY features">
+          <article class="site-feature">
+            <h3>Visualize FLP files</h3>
+            <p>Read tempo, patterns, arrangements, and notes from FL Studio project files and preview them as an animated piano roll.</p>
+          </article>
+          <article class="site-feature">
+            <h3>Style every layer</h3>
+            <p>Customize colors, gradients, note motion, percussion shapes, playhead effects, backgrounds, and parallax depth.</p>
+          </article>
+          <article class="site-feature">
+            <h3>Export MIDI and MP4</h3>
+            <p>Download a standards-compliant MIDI file or render a portrait, landscape, or square MP4 music video in supported browsers.</p>
+          </article>
+        </div>
+
+        <section class="site-how" id="how-it-works" aria-labelledby="how-it-works-title">
+          <div>
+            <p class="site-kicker">HOW IT WORKS</p>
+            <h2 id="how-it-works-title">From project to visualizer in three steps.</h2>
+          </div>
+          <ol class="site-steps">
+            <li class="site-step">
+              <span class="site-step-number" aria-hidden="true">01</span>
+              <div><h3>Load your project</h3><p>Drop an FL Studio <code>.flp</code> file into ROLLPLAY. Add a finished audio file when you want it included in the video.</p></div>
+            </li>
+            <li class="site-step">
+              <span class="site-step-number" aria-hidden="true">02</span>
+              <div><h3>Shape the motion</h3><p>Choose the frame, background, colors, animations, layer order, and playhead style while previewing playback.</p></div>
+            </li>
+            <li class="site-step">
+              <span class="site-step-number" aria-hidden="true">03</span>
+              <div><h3>Export your work</h3><p>Download MIDI or render an MP4 with your chosen resolution, frame rate, and maximum file size.</p></div>
+            </li>
+          </ol>
+        </section>
+
+        <section class="site-faq" id="faq" aria-labelledby="faq-title">
+          <p class="site-kicker">ANSWERS</p>
+          <h2 id="faq-title">Frequently asked questions.</h2>
+          <details open>
+            <summary>What is ROLLPLAY?</summary>
+            <p>ROLLPLAY is a browser-based FL Studio FLP visualizer that turns project notes and arrangements into an animated piano-roll preview and shareable music video.</p>
+          </details>
+          <details>
+            <summary>How does ROLLPLAY handle my files?</summary>
+            <p>ROLLPLAY parses FLP projects and audio in your browser. Your project, audio, and generated exports are not uploaded to a server.</p>
+          </details>
+          <details>
+            <summary>What can I export from ROLLPLAY?</summary>
+            <p>You can download standards-compliant MIDI files and render H.264/AAC MP4 videos in supported browsers. Exports can be portrait, landscape, or square at 24, 30, or 60 FPS.</p>
+          </details>
+          <details>
+            <summary>Which browsers support MP4 rendering?</summary>
+            <p>MP4 rendering requires a Chromium-based browser with WebCodecs, H.264 VideoEncoder, and AAC AudioEncoder support. Project parsing, preview, playback, and MIDI export work in current browsers.</p>
+          </details>
+        </section>
+      </div>
+    </section>
     </main>
 
+    <noscript>
+      <div class="noscript-message">
+        <h2>JavaScript is required to use the ROLLPLAY editor.</h2>
+        <p>ROLLPLAY runs in your browser and needs JavaScript to parse FL Studio FLP files, preview animations, export MIDI, and render MP4 videos.</p>
+      </div>
+    </noscript>
+    <footer class="site-footer">
+      <p>ROLLPLAY · Browser-native FL Studio FLP visualization and export.</p>
+      <a href="/llms.txt">AI-readable site summary</a>
+    </footer>
     <div class="toast" id="toast" role="status"></div>
     <script type="module" src="src/app.js"></script>
   </body>
