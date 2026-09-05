@@ -6,7 +6,9 @@ const root = new URL("../", import.meta.url);
 
 test("home page exposes crawlable SEO metadata and structured data", async () => {
   const html = await readFile(new URL("index.html", root), "utf8");
-  assert.match(html, /<title>ROLLPLAY - FLP Visualizer, MIDI &amp; MP4 Exporter<\/title>/);
+  assert.match(html, /<title>ROLLPLAY - FLP &amp; ALS Visualizer, MIDI &amp; MP4 Exporter<\/title>/);
+  assert.match(html, /accept="\.flp,\.als"/);
+  assert.match(html, /Ableton Live ALS project parsing/);
   assert.match(html, /<link rel="canonical" href="https:\/\/rollplay\.cc\/" \/>/);
   assert.match(html, /<meta name="robots" content="index,follow,/);
   assert.match(html, /<meta property="og:title"/);

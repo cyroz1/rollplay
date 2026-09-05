@@ -1,12 +1,13 @@
 # ROLLPLAY
 
-A dependency-free, browser-native FL Studio project visualizer, MIDI exporter, and MP4 renderer. Drop an `.flp`, optionally add your finished audio, customize the piano-roll visualization, and export a video without uploading your music to a server.
+A dependency-free, browser-native FL Studio and Ableton Live project visualizer, MIDI exporter, and MP4 renderer. Drop an `.flp` or gzip-compressed `.als`, optionally add your finished audio, customize the piano-roll visualization, and export a video without uploading your music to a server.
 
 **Live site:** [rollplay.cc](https://rollplay.cc)
 
 ## Features
 
 - Reads FL Studio project binaries directly, including FL Studio 26 pattern notes and playlist arrangements.
+- Reads Ableton Live `.als` sets directly in the browser, decompressing their XML and extracting tempo, MIDI tracks, arrangement clips, loops, note velocity, and timing.
 - Extracts tempo, channels, named patterns, arranged clips, note velocity, and timing.
 - Displays a responsive, animated piano roll with per-pattern colors, a vertical playhead, hit effects, hearts, and percussion diamonds.
 - Offers portrait and landscape frame presets; landscape mode drops notes toward a horizontal playhead whose default position is centered and configurable from bottom to top.
@@ -47,7 +48,7 @@ Project parsing, preview, playback, and MIDI export work in current browsers. MP
 npm test
 ```
 
-The optional FL Studio 26 regression fixture is intentionally not committed. When available adjacent to the repository as `../upload/key.flp`, tests additionally validate 148 BPM, 15 patterns, 172 clips, and 6,550 arranged notes.
+The optional FL Studio 26 regression fixture is intentionally not committed. When available adjacent to the repository as `../upload/key.flp`, tests additionally validate 148 BPM, 15 patterns, 172 clips, and 6,550 arranged notes. Ableton parser tests use small in-memory Live Set fixtures so no user music is committed.
 
 ## Privacy
 
