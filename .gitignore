@@ -1,5 +1,7 @@
 node_modules/
 dist/
+.wrangler/
+.playwright-cli/
 .DS_Store
 *.flp
 *.mp3

@@ -6,7 +6,6 @@ function copyChunk(chunk) {
   chunk.copyTo(data);
   return data;
 }
-
 async function encodeAudio(audioBuffer, onProgress) {
   if (!audioBuffer || typeof AudioEncoder === "undefined") return null;
   const sampleRate = audioBuffer.sampleRate;
@@ -43,7 +42,6 @@ async function encodeAudio(audioBuffer, onProgress) {
   encoder.close();
   return track;
 }
-
 export function autoVideoBitrate(width, height, fps) {
   const safeWidth = Math.max(1, Number(width) || 1);
   const safeHeight = Math.max(1, Number(height) || 1);

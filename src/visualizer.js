@@ -19,7 +19,6 @@ export function createLayerStyle(index = 0) {
     octaveOffset: 0,
   };
 }
-
 export function backgroundImageRect(canvasWidth, canvasHeight, imageWidth, imageHeight, fit = "cover") {
   const targetWidth = Math.max(1, Number(canvasWidth) || 1);
   const targetHeight = Math.max(1, Number(canvasHeight) || 1);
@@ -33,7 +32,6 @@ export function backgroundImageRect(canvasWidth, canvasHeight, imageWidth, image
   const height = sourceHeight * scale;
   return { x: (targetWidth - width) / 2, y: (targetHeight - height) / 2, width, height };
 }
-
 function lowerBound(notes, tick) {
   let low = 0, high = notes.length;
   while (low < high) {
@@ -122,7 +120,8 @@ export class Visualizer {
   }
 
   pixelsPerTick(width = this.canvas.width) {
-    const barsVisible = Math.max(1, Math.min(8, Number(this.settings.barsVisible) || 3));
+    const rawBarsVisible = Number(this.settings.barsVisible);
+    const barsVisible = Number.isFinite(rawBarsVisible) ? Math.max(.25, Math.min(8, rawBarsVisible)) : 3;
     return width / (this.project.ppq * 4 * barsVisible);
   }
 
