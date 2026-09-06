@@ -5,6 +5,7 @@ import { createRequire } from "node:module";
 import { parseFlp } from "../src/flp-parser.js";
 import { Visualizer, backgroundImageRect, createLayerStyle } from "../src/visualizer.js";
 import { muxMp4 } from "../src/mp4-muxer.js";
+import { autoVideoBitrate, bitrateForMaxFileSize } from "../src/exporter.js";
 import { createColorRamp } from "../src/color-utils.js";
 
 test("creates an inclusive color gradient across selected layers", () => {
@@ -52,7 +53,10 @@ test("layer styles support independent colors, opacity, and note animations", ()
   assert.equal(visualizer.noteHighlightOpacity(note, note.length), 0, "Finished notes should not remain highlighted.");
 
   Object.assign(settings, { playheadColor: "#123456", playheadThickness: 20, playheadGlow: 125, playheadOpacity: 5 });
-  assert.deepEqual(visualizer.playheadStyle(1080), { color: "#123456", thickness: 12, glow: 1, opacity: .1 });
+  assert.deepEqual(visualizer.playheadStyle(1080), {
+    color: "#123456", colorMode: "solid", gradientStart: "#123456", gradientEnd: "#123456",
+    thickness: 12, glow: 1, opacity: .1,
+  });
   settings.playheadOffset = 12;
   assert.equal(visualizer.playheadPosition(1080), 1080 * .56, "Portrait offsets should move the playhead right for positive values.");
   settings.playheadOffset = 0;
@@ -86,6 +90,78 @@ test("layer styles support independent colors, opacity, and note animations", ()
   assert.equal(visualizer.noteMotion(note, note.length, 1).offset, 22, "Drop animation should remain down through the note end.");
   assert.ok(visualizer.noteMotion(note, note.length + 96 * .09, 1).offset > 0, "Drop animation should release after the note ends.");
   assert.equal(visualizer.noteMotion(note, note.length + 96 * .18, 1).offset, 0, "Drop animation should return after its release.");
+});
+
+test("melody and percussion note axes have independent zoom and offset controls", () => {
+  const melody = { at: 0, length: 96, key: 60, channel: 0, velocity: 100, patternId: 1 };
+  const percussionOne = { at: 0, length: 24, key: 36, channel: 10, velocity: 100, patternId: 2 };
+  const percussionTwo = { at: 0, length: 24, key: 37, channel: 10, velocity: 100, patternId: 3 };
+  const project = {
+    tempo: 120,
+    ppq: 96,
+    patterns: [{ id: 1, name: "Lead", notes: [melody] }, { id: 2, name: "Kick", notes: [percussionOne] }, { id: 3, name: "Snare", notes: [percussionTwo] }],
+    notes: [melody, percussionOne, percussionTwo],
+  };
+  const settings = {
+    percussion: true,
+    trackModes: new Map([[1, "melody"], [2, "step"], [3, "step"]]),
+    layerOrder: [1, 2, 3],
+  };
+  const visualizer = new Visualizer({ width: 1080, height: 1920, getContext: () => ({}) }, project, settings);
+  visualizer.refreshStepLanes();
+
+  const melodyHeight = 1920;
+  const melodyCenter = melodyHeight * (.106 + .688) / 2;
+  const baseMelodyY = visualizer.noteY(melody, melodyHeight);
+  settings.melodyVerticalZoom = 180;
+  const zoomedMelodyY = visualizer.noteY(melody, melodyHeight);
+  assert.ok(Math.abs(zoomedMelodyY - melodyCenter) > Math.abs(baseMelodyY - melodyCenter), "Melody zoom should spread notes away from the pitch-axis center.");
+  settings.melodyVerticalZoom = 100;
+  settings.melodyVerticalOffset = 20;
+  assert.ok(visualizer.noteY(melody, melodyHeight) < baseMelodyY, "Positive melody offset should move notes upward.");
+
+  settings.melodyVerticalOffset = 0;
+  const basePercussionGap = visualizer.noteY(percussionTwo, melodyHeight) - visualizer.noteY(percussionOne, melodyHeight);
+  settings.percussionVerticalZoom = 180;
+  const zoomedPercussionGap = visualizer.noteY(percussionTwo, melodyHeight) - visualizer.noteY(percussionOne, melodyHeight);
+  assert.ok(zoomedPercussionGap > basePercussionGap, "Percussion zoom should spread its lane spacing.");
+  settings.percussionVerticalZoom = 100;
+  const basePercussionY = visualizer.noteY(percussionOne, melodyHeight);
+  settings.percussionVerticalOffset = 20;
+  assert.ok(visualizer.noteY(percussionOne, melodyHeight) < basePercussionY, "Positive percussion offset should move lanes upward.");
+  assert.equal(visualizer.noteY(melody, melodyHeight), baseMelodyY, "Percussion controls should not move melody notes.");
+});
+
+test("playhead gradient uses independent endpoint colors while retaining edge fades", () => {
+  const stops = [];
+  const context = {
+    createLinearGradient() {
+      return { addColorStop(offset, color) { stops.push([offset, color]); } };
+    },
+    beginPath() {},
+    moveTo() {},
+    lineTo() {},
+    stroke() {},
+  };
+  const note = { at: 0, length: 96, key: 60, channel: 0, velocity: 100, patternId: 1 };
+  const project = { tempo: 120, ppq: 96, patterns: [{ id: 1, name: "Lead", notes: [note] }], notes: [note] };
+  const settings = {
+    playheadColorMode: "gradient",
+    playheadGradientStart: "#ff0000",
+    playheadGradientEnd: "#0000ff",
+    playheadGlow: 0,
+    playheadOpacity: 100,
+  };
+  const visualizer = new Visualizer({ width: 1080, height: 1920, getContext: () => context }, project, settings);
+
+  visualizer.drawPlayhead(1080, 1920, 540);
+  assert.deepEqual(stops, [
+    [0, "#ff000000"],
+    [.08, "#ff0000c7"],
+    [.5, "#800080ff"],
+    [.92, "#0000ffc7"],
+    [1, "#0000ff00"],
+  ]);
 });
 
 test("step percussion notes render as filled diamonds", () => {
@@ -167,8 +243,46 @@ test("layer parallax makes foreground layers travel faster than background layer
 
 test("fullscreen preview contains the canvas without stretching", async () => {
   const styles = await readFile(new URL("../styles.css", import.meta.url), "utf8");
-  assert.match(styles, /\.preview-frame:fullscreen\s*\{[^}]*width:\s*100vw;[^}]*height:\s*100vh;[^}]*aspect-ratio:\s*auto;/s);
-  assert.match(styles, /\.preview-frame:fullscreen\s+canvas\s*\{[^}]*width:\s*auto;[^}]*height:\s*auto;[^}]*max-width:\s*100%;[^}]*max-height:\s*100%;[^}]*object-fit:\s*contain;/s);
+  assert.match(styles, /\.preview-frame:fullscreen\s*\{[^}]*inset:\s*0;[^}]*width:\s*100vw;[^}]*height:\s*100vh;[^}]*aspect-ratio:\s*auto;/s);
+  assert.match(styles, /\.preview-frame:fullscreen\s+canvas\s*\{[^}]*width:\s*100%;[^}]*height:\s*100%;[^}]*object-fit:\s*contain;[^}]*object-position:\s*center;/s);
+});
+
+test("customization controls are organized into accessible collapsible sections", async () => {
+  const markup = await readFile(new URL("../index.html", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../styles.css", import.meta.url), "utf8");
+  assert.equal((markup.match(/<details class="rail-section settings-section/g) || []).length, 3);
+  assert.match(markup, /<summary class="section-summary"><h2>VISUAL STYLE<\/h2>/);
+  assert.match(markup, /<summary class="section-summary"><h2>LAYER STYLE<\/h2>/);
+  assert.match(markup, /<summary class="section-summary"><h2>EXPORT<\/h2>/);
+  for (const label of ["Presets", "Frame &amp; background", "Note layout", "Playhead", "Effects &amp; depth", "Animation", "Appearance", "Video output", "MIDI output"]) {
+    assert.match(markup, new RegExp(`<summary class="customization-summary"><span>${label}<\\/span>`));
+  }
+  for (const id of ["melody-vertical-zoom-input", "melody-vertical-offset-input", "percussion-vertical-zoom-input", "percussion-vertical-offset-input"]) {
+    assert.match(markup, new RegExp(`id="${id}"`));
+  }
+  assert.match(markup, /<legend>Melody notes<\/legend>/);
+  assert.match(markup, /<legend>Percussion notes<\/legend>/);
+  assert.match(styles, /\.settings-section > \.section-summary::after/);
+  assert.match(styles, /\.settings-section\[open\] > \.section-summary::after/);
+  assert.match(styles, /\.customization-group\[open\] > \.customization-summary/);
+});
+
+test("auto video bitrate scales with resolution and frame rate", () => {
+  const hd = autoVideoBitrate(1280, 720, 30);
+  const fullHd = autoVideoBitrate(1920, 1080, 30);
+  const fullHd60 = autoVideoBitrate(1920, 1080, 60);
+  const fourK = autoVideoBitrate(3840, 2160, 30);
+  assert.ok(fullHd > hd, "Full HD should receive more bitrate than HD.");
+  assert.ok(fullHd60 > fullHd, "60 FPS should receive more bitrate than 30 FPS.");
+  assert.ok(fourK > fullHd, "4K should receive more bitrate than Full HD.");
+  assert.equal(autoVideoBitrate(1920, 1080, 30), 6_500_000);
+});
+
+test("max file size bitrate preserves an audio budget", () => {
+  const withoutAudio = bitrateForMaxFileSize(20, 60, 0);
+  const withAudio = bitrateForMaxFileSize(20, 60, 192000);
+  assert.equal(withoutAudio - withAudio, 192000);
+  assert.equal(bitrateForMaxFileSize(5, 1, 0), 37_600_000);
 });
 
 test("background image fitting preserves aspect ratio", () => {

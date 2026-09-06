@@ -10,16 +10,19 @@ A dependency-free, browser-native FL Studio project visualizer, MIDI exporter, a
 - Extracts tempo, channels, named patterns, arranged clips, note velocity, and timing.
 - Displays a responsive, animated piano roll with per-pattern colors, a vertical playhead, hit effects, hearts, and percussion diamonds.
 - Offers portrait and landscape frame presets; landscape mode drops notes toward a horizontal playhead whose default position is centered and configurable from bottom to top.
+- Supports solid or gradient playhead colors with independent start and end colors.
 - Supports solid-color, angled-gradient, and imported-image backgrounds with cover, contain, or stretch fitting.
 - Switches any track independently between melodic piano-roll bars and step-percussion diamond rendering.
 - Reorders track layers with drag-and-drop or up/down controls, keeping previews, hit effects, and exported video in sync.
 - Selects one or many layers for shared solid or gradient colors, transparency, octave offsets, note motion, and particle animation styles.
+- Separately controls melody and percussion note-axis zoom and offsets, so pitch layouts and step lanes can be positioned independently.
+- Organizes visual, layer, and export controls into keyboard-accessible collapsible sections for a shorter, easier-to-scan settings rail.
 - Adjusts horizontal zoom from one to eight visible bars, changing piano-roll scale and perceived scroll speed in previews and exports.
 - Loads MP3, WAV, OGG, FLAC, and other browser-supported audio formats.
 - Exports standards-compliant multi-track MIDI with project tempo.
 - Renders H.264/AAC MP4 directly in supported browsers using WebCodecs and a built-in ISO BMFF multiplexer.
 - Supports portrait, landscape, and square exports at 24, 30, or 60 FPS.
-- Computes a video bitrate from a configurable maximum file size.
+- Offers multiple 9:16, 16:9, and 1:1 export resolutions, expanded file-size targets, and an Auto bitrate mode tuned to the selected resolution and frame rate.
 - Runs without runtime dependencies, external CDNs, API keys, or a backend.
 
 ## Run locally
