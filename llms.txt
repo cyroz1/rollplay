@@ -1,14 +1,15 @@
 # ROLLPLAY
 
-> ROLLPLAY is a browser-native FL Studio FLP visualizer, MIDI exporter, and MP4 music-video renderer. It reads project and audio files locally in the browser, so files do not need to be uploaded to a server.
+> ROLLPLAY is a browser-native FL Studio FLP and Ableton Live ALS visualizer, MIDI exporter, and MP4 music-video renderer. It reads project and audio files locally in the browser, so files do not need to be uploaded to a server.
 
 ## Primary page
 
-- [ROLLPLAY](https://rollplay.cc/): Load an FL Studio `.flp` project, preview its notes as an animated piano roll, customize the visual style, and export MIDI or MP4.
+- [ROLLPLAY](https://rollplay.cc/): Load an FL Studio `.flp` or Ableton Live `.als` project, preview its notes as an animated piano roll, customize the visual style, and export MIDI or MP4.
 
 ## What ROLLPLAY does
 
 - Parses FL Studio project files in the browser, including tempo, channels, named patterns, playlist arrangements, note velocity, and timing.
+- Parses Ableton Live `.als` sets in the browser, including gzip decompression, tempo, MIDI tracks, arrangement clips, loops, note velocity, and timing.
 - Visualizes melodic notes as an animated piano roll with a configurable playhead, hit effects, layer shadows, parallax, and particle motion.
 - Switches tracks between melodic piano-roll bars and step-percussion diamond rendering.
 - Customizes per-layer colors, gradients, transparency, octave offsets, note animation, highlight behavior, and particle animation.
@@ -19,7 +20,7 @@
 
 ## How to use
 
-1. Drop an FL Studio `.flp` file into the Visualizer.
+1. Drop an FL Studio `.flp` or Ableton Live `.als` file into the Visualizer.
 2. Optionally add the finished audio file for the video soundtrack.
 3. Choose the frame, background, layer styles, and export settings.
 4. Preview playback, download MIDI, or render an MP4 video.

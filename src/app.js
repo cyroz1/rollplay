@@ -1,4 +1,5 @@
 import { parseFlp } from "./flp-parser.js";
+import { parseAls } from "./als-parser.js";
 import { createMidi } from "./midi-export.js";
 import { Visualizer, createLayerStyle } from "./visualizer.js";
 import { autoVideoBitrate, renderMp4 } from "./exporter.js";
@@ -536,13 +537,15 @@ function movePatternLayer(patternId, targetIndex) {
   notify(`${pattern?.name || "Track"}: layer ${targetIndex + 1} of ${order.length}`);
 }
 
-async function loadFlp(file) {
+async function loadProject(file) {
   if (!file) return;
+  const isAbleton = /\.als$/i.test(file.name);
+  const formatName = isAbleton ? "Ableton Live" : "FL Studio";
   try {
     if (state.playing) await setPlaying(false);
-    const project = parseFlp(await file.arrayBuffer());
+    const project = isAbleton ? await parseAls(await file.arrayBuffer()) : parseFlp(await file.arrayBuffer());
     state.project = project;
-    state.fileName = file.name.replace(/\.flp$/i, "");
+    state.fileName = file.name.replace(/\.(?:flp|als)$/i, "");
     state.settings.enabledPatterns = new Set(project.patterns.map(pattern => pattern.id));
     state.settings.layerOrder = project.patterns.map(pattern => pattern.id);
     state.settings.layerStyles = new Map(project.patterns.map((pattern, index) => [pattern.id, createLayerStyle(index)]));
@@ -550,10 +553,10 @@ async function loadFlp(file) {
     state.lastSelectedPatternId = project.patterns[0]?.id ?? null;
     state.settings.trackModes = new Map(project.patterns.map(pattern => {
       const percussionNotes = pattern.notes.filter(note => note.channel >= 8 && note.channel !== 9).length;
-      return [pattern.id, percussionNotes > pattern.notes.length / 2 ? "step" : "melody"];
+      return [pattern.id, pattern.isPercussion || percussionNotes > pattern.notes.length / 2 ? "step" : "melody"];
     }));
     state.visualizer = new Visualizer(element("preview"), project, state.settings);
-    element("flp-label").textContent = file.name;
+    element("project-label").textContent = file.name;
     element("tempo-value").textContent = `${project.tempo} BPM`;
     element("duration-value").textContent = formatTime(project.duration);
     element("patterns-value").textContent = String(project.patterns.length);
@@ -566,9 +569,9 @@ async function loadFlp(file) {
     refreshPatterns();
     refreshLayerStyleControls();
     seek(0);
-    notify(`Loaded ${project.patterns.length} patterns and ${project.notes.length.toLocaleString()} notes.`);
+    notify(`Loaded ${project.patterns.length} patterns and ${project.notes.length.toLocaleString()} notes from ${formatName}.`);
   } catch (error) {
-    notify(error.message || "Unable to read this FL Studio project.", 5000);
+    notify(error.message || `Unable to read this ${formatName} project.`, 5000);
     console.error(error);
   }
 }
@@ -689,12 +692,12 @@ function refreshSettingsControls() {
 }
 
 function bindControls() {
-  element("flp-input").addEventListener("change", event => loadFlp(event.target.files[0]));
+  element("project-input").addEventListener("change", event => loadProject(event.target.files[0]));
   element("audio-input").addEventListener("change", event => loadAudio(event.target.files[0]));
-  const dropzone = element("flp-dropzone");
+  const dropzone = element("project-dropzone");
   for (const eventName of ["dragenter", "dragover"]) dropzone.addEventListener(eventName, event => { event.preventDefault(); dropzone.classList.add("dragging"); });
   for (const eventName of ["dragleave", "dragend"]) dropzone.addEventListener(eventName, () => dropzone.classList.remove("dragging"));
-  dropzone.addEventListener("drop", event => { event.preventDefault(); dropzone.classList.remove("dragging"); loadFlp(event.dataTransfer.files[0]); });
+  dropzone.addEventListener("drop", event => { event.preventDefault(); dropzone.classList.remove("dragging"); loadProject(event.dataTransfer.files[0]); });
   element("play-button").onclick = () => setPlaying(!state.playing);
   element("restart-button").onclick = () => seek(0);
   element("timeline").oninput = event => seek(Number(event.target.value) / 1000 * state.project.duration);
@@ -712,7 +715,7 @@ function bindControls() {
     element("fullscreen-button").setAttribute("aria-label", active ? "Exit fullscreen preview" : "Fullscreen preview");
   });
   element("render-button").onclick = exportVideo;
-  element("header-export").onclick = () => state.project ? exportVideo() : notify("Load an FLP project first.");
+  element("header-export").onclick = () => state.project ? exportVideo() : notify("Load a project first.");
   element("midi-button").onclick = () => download(new Blob([createMidi(state.project, state.settings.enabledPatterns)], { type: "audio/midi" }), `${state.fileName}.mid`);
   element("select-all-patterns").onclick = () => {
     state.selectedPatternIds = new Set(state.settings.layerOrder);
@@ -897,4 +900,16 @@ refreshNoteAxisControls();
 refreshSizeHint();
 refreshPresetControls();
 requestAnimationFrame(animationLoop);
-window.__ROLLPLAY__ = { state, loadFlp, loadAudio, seek, setPlaying, exportVideo, parseFlp, createMidi, movePatternLayer };
+window.__ROLLPLAY__ = {
+  state,
+  loadProject,
+  loadFlp: loadProject,
+  loadAudio,
+  seek,
+  setPlaying,
+  exportVideo,
+  parseFlp,
+  parseAls,
+  createMidi,
+  movePatternLayer,
+};
