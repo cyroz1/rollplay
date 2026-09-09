@@ -1,3 +1,4 @@
+import { groupAudioClips, normalizeSoundReference, soundNameFromReference } from "./audio-layers.js";
 const decoder = new TextDecoder();
 
 const DEFAULT_PPQ = 960;
@@ -185,11 +186,12 @@ function directChild(node, name) {
 }
 
 function descendants(node, name) {
+  const names = new Set(Array.isArray(name) ? name : [name]);
   const found = [];
   const pending = [...(node?.children || [])].reverse();
   while (pending.length) {
     const current = pending.pop();
-    if (localName(current.name) === name) found.push(current);
+    if (names.has(localName(current.name))) found.push(current);
     for (let index = current.children.length - 1; index >= 0; index -= 1) pending.push(current.children[index]);
   }
   return found;
@@ -393,14 +395,62 @@ function parseClip(clip, track, trackIndex, clipIndex) {
   };
 }
 
-function findMidiTracks(liveSet) {
-  const tracks = descendants(liveSet, "MidiTrack");
+function audioFileReference(clip) {
+  const fileRef = firstDescendant(clip, "FileRef");
+  if (!fileRef) return { path: "", name: "", reference: "" };
+
+  const value = (node, name) => {
+    const attribute = node?.attrs?.[name];
+    if (attribute != null && attribute.trim() !== "") return attribute.trim();
+    return nodeValue(directChild(node, name))?.trim() || "";
+  };
+  const path = value(fileRef, "Path") || value(fileRef, "AbsolutePath") || value(fileRef, "FullPath");
+  const name = value(fileRef, "Name") || value(fileRef, "FileName");
+  const relativePathNode = directChild(fileRef, "RelativePath");
+  const relativePath = value(fileRef, "RelativePath")
+    || descendants(relativePathNode || fileRef, "RelativePathElement")
+      .map(element => element.attrs.Dir || nodeValue(element) || "")
+      .filter(Boolean)
+      .join("/");
+  const reference = path || [relativePath, name].filter(Boolean).join("/") || name;
+  return { path: path || reference, name, reference };
+}
+
+function parseAudioClip(clip, track, trackIndex, clipIndex) {
+  const start = clipStart(clip);
+  const loop = firstDescendant(clip, "Loop");
+  const loopStart = loop ? descendantNumber(loop, "LoopStart", 0) : 0;
+  const loopEnd = loop ? descendantNumber(loop, "LoopEnd", loopStart) : loopStart;
+  const source = audioFileReference(clip);
+  const clipName = firstValue(clip, ["EffectiveName", "UserName", "Name"])
+    || `${track.name} · Clip ${clipIndex + 1}`;
+  const length = Math.max(MIN_NOTE_DURATION_BEATS, clipLength(clip, start, loopStart, loopEnd, 0));
+  const soundName = source.name || soundNameFromReference(source.reference) || clipName;
+  const soundKey = normalizeSoundReference(source.reference || soundName || `${track.id}-${clipIndex}`);
+  return {
+    at: start,
+    length,
+    name: clipName,
+    soundName,
+    soundKey,
+    samplePath: source.path || null,
+    track: trackIndex,
+    isPercussion: true,
+    sourceTrackId: track.id,
+    sourceClipIndex: clipIndex,
+    hasExplicitStart: attributeNumber(clip, "Time", null) != null || firstDescendant(clip, "CurrentStart") != null,
+  };
+}
+
+function findTracks(liveSet) {
+  const tracks = descendants(liveSet, ["MidiTrack", "AudioTrack"]);
   return [...new Set(tracks)];
 }
 
 function findTrackClips(track) {
-  const all = descendants(track, "MidiClip");
-  const arrangement = all.filter(clip => hasAncestor(clip, "Arranger"));
+  const clipName = track.kind === "audio" ? "AudioClip" : "MidiClip";
+  const all = descendants(track.node, clipName).filter(clip => !hasAncestor(clip, "FreezeSequencer"));
+  const arrangement = all.filter(clip => hasAncestor(clip, "Arranger") || hasAncestor(clip, "ArrangerAutomation"));
   if (arrangement.length) return { clips: arrangement, session: false };
   const session = all.filter(clip => hasAncestor(clip, "ClipSlotList"));
   if (session.length) return { clips: session, session: true };
@@ -429,30 +479,39 @@ export async function parseAls(input) {
 
   const tempo = descendantNumber(firstDescendant(liveSet, "Tempo"), "Manual", DEFAULT_TEMPO);
   const safeTempo = tempo > 0 ? tempo : DEFAULT_TEMPO;
-  const trackNodes = findMidiTracks(liveSet);
+  const trackNodes = findTracks(liveSet);
   const trackSummaries = trackNodes.map((trackNode, index) => {
     const name = trackName(trackNode, index);
+    const kind = localName(trackNode.name) === "AudioTrack" ? "audio" : "midi";
     return {
       node: trackNode,
       id: trackNode.attrs.Id ?? String(index),
       name,
+      kind,
       channel: trackMidiChannel(trackNode),
-      isPercussion: isPercussionTrack(trackNode, name),
+      isPercussion: kind === "audio" || isPercussionTrack(trackNode, name),
     };
   });
 
   const patterns = [];
   const clips = [];
   const notes = [];
+  const audioOccurrences = [];
   let nextPatternId = 1;
 
   for (const [trackIndex, track] of trackSummaries.entries()) {
-    const { clips: clipNodes, session } = findTrackClips(track.node);
+    const { clips: clipNodes, session } = findTrackClips(track);
     let sessionCursor = 0;
     for (const [clipIndex, clipNode] of clipNodes.entries()) {
-      const parsed = parseClip(clipNode, track, trackIndex, clipIndex);
+      const parsed = track.kind === "audio"
+        ? parseAudioClip(clipNode, track, trackIndex, clipIndex)
+        : parseClip(clipNode, track, trackIndex, clipIndex);
       if (session && (!parsed.hasExplicitStart || (clipIndex > 0 && parsed.at <= sessionCursor + EPSILON))) parsed.at = sessionCursor;
       sessionCursor = Math.max(sessionCursor, parsed.at + parsed.length);
+      if (track.kind === "audio") {
+        audioOccurrences.push(parsed);
+        continue;
+      }
       if (!parsed.notes.length) continue;
 
       const pattern = {
@@ -490,6 +549,33 @@ export async function parseAls(input) {
     }
   }
 
+  const audioLayers = groupAudioClips(audioOccurrences.map(occurrence => ({
+    at: Math.max(0, Math.round(occurrence.at * DEFAULT_PPQ)),
+    length: Math.max(1, Math.round(occurrence.length * DEFAULT_PPQ)),
+    track: occurrence.track,
+    soundKey: occurrence.soundKey,
+    soundName: occurrence.soundName,
+    samplePath: occurrence.samplePath,
+    sourceTrackId: occurrence.sourceTrackId,
+    sourceClipIndex: occurrence.sourceClipIndex,
+  })), { startId: nextPatternId, ppq: DEFAULT_PPQ });
+  patterns.push(...audioLayers.patterns);
+  clips.push(...audioLayers.clips);
+  const audioPatternsById = new Map(audioLayers.patterns.map(pattern => [pattern.id, pattern]));
+  for (const clip of audioLayers.clips) {
+    const pattern = audioPatternsById.get(clip.patternId);
+    if (!pattern) continue;
+    notes.push({
+      at: clip.at,
+      length: Math.max(1, clip.length),
+      key: pattern.notes[0].key,
+      channel: pattern.notes[0].channel,
+      velocity: pattern.notes[0].velocity,
+      track: clip.track,
+      patternId: pattern.id,
+    });
+  }
+
   notes.sort((left, right) => left.at - right.at || left.channel - right.channel || left.key - right.key);
   const totalTicks = Math.max(DEFAULT_PPQ * 4, ...clips.map(clip => clip.at + clip.length));
   return {
@@ -500,7 +586,7 @@ export async function parseAls(input) {
     ppq: DEFAULT_PPQ,
     channelCount: trackSummaries.length,
     channels: trackSummaries.map(({ id, name, channel }) => ({ id, name, channel })),
-    tracks: trackSummaries.map(({ id, name, channel, isPercussion }) => ({ id, name, channel, isPercussion })),
+    tracks: trackSummaries.map(({ id, name, kind, channel, isPercussion }) => ({ id, name, kind, channel, isPercussion })),
     patterns,
     clips,
     notes,

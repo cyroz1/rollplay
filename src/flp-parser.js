@@ -1,3 +1,4 @@
+import { groupAudioClips, soundNameFromReference } from "./audio-layers.js";
 const decoder16 = new TextDecoder("utf-16le");
 const decoder8 = new TextDecoder();
 const NOTE_RECORD_SIZES = [24, 20];
@@ -103,35 +104,51 @@ function playlistPatternId(view, position, patterns) {
   return patterns.has(patternId) ? patternId : null;
 }
 
-function decodePlaylistCandidate(payload, stride, patterns) {
+function playlistChannelId(view, position, audioChannels) {
+  const item = view.getUint16(position + 6, true);
+  if ((item & 0xf000) === 0x5000) return null;
+  return audioChannels.has(item) ? item : null;
+}
+
+function decodePlaylistCandidate(payload, stride, patterns, audioChannels) {
   const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength);
   const recordCount = Math.floor(payload.byteLength / stride);
   const clips = [];
   let patternRecords = 0;
+  let audioRecords = 0;
   let patternBaseRecords = 0;
   let orderedRecords = 0;
   let previousPosition = -1;
   for (let position = 0; position + stride <= payload.byteLength; position += stride) {
     if (view.getUint16(position + 4, true) === 0x5000) patternBaseRecords += 1;
     const patternId = playlistPatternId(view, position, patterns);
-    if (patternId == null) continue;
+    const channelId = playlistChannelId(view, position, audioChannels);
+    if (patternId == null && channelId == null) continue;
     const at = view.getUint32(position, true);
     if (at >= previousPosition) orderedRecords += 1;
     previousPosition = at;
-    patternRecords += 1;
-    clips.push({
+    const clip = {
       at,
       length: view.getUint32(position + 8, true),
-      patternId,
       track: Math.max(0, 499 - view.getUint16(position + 12, true)),
-    });
+    };
+    if (patternId != null) {
+      patternRecords += 1;
+      clips.push({ ...clip, patternId });
+    } else {
+      audioRecords += 1;
+      clips.push({ ...clip, kind: "audio", sourceChannelId: channelId });
+    }
   }
-  const coverage = recordCount ? patternRecords / recordCount : 0;
+  const recognizedRecords = patternRecords + audioRecords;
+  const coverage = recordCount ? recognizedRecords / recordCount : 0;
   const baseCoverage = recordCount ? patternBaseRecords / recordCount : 0;
   return {
     stride,
     clips,
     patternRecords,
+    audioRecords,
+    recognizedRecords,
     recordCount,
     coverage,
     baseCoverage,
@@ -139,15 +156,16 @@ function decodePlaylistCandidate(payload, stride, patterns) {
   };
 }
 
-function decodePlaylist(payload, patterns, version) {
+function decodePlaylist(payload, patterns, audioChannels, version) {
   const sizes = preferredPlaylistSizes(version)
     .filter(stride => payload.byteLength >= stride && payload.byteLength % stride === 0);
-  const candidates = sizes.map(stride => decodePlaylistCandidate(payload, stride, patterns));
+  const candidates = sizes.map(stride => decodePlaylistCandidate(payload, stride, patterns, audioChannels));
   return candidates
-    .filter(candidate => candidate.patternRecords > 0)
+    .filter(candidate => candidate.recognizedRecords > 0)
     .sort((left, right) => (
       right.coverage - left.coverage
       || right.patternRecords - left.patternRecords
+      || right.audioRecords - left.audioRecords
       || right.baseCoverage - left.baseCoverage
       || right.orderedRecords - left.orderedRecords
       || sizes.indexOf(left.stride) - sizes.indexOf(right.stride)
@@ -185,6 +203,7 @@ function splitPatternsByChannel(patterns, clips, channels) {
   }
 
   const splitClips = clips.flatMap(clip => {
+    if (clip.kind === "audio") return [clip];
     const variants = patternVariants.get(clip.patternId) || [{ id: clip.patternId }];
     return variants.map(variant => ({ ...clip, patternId: variant.id }));
   });
@@ -215,6 +234,8 @@ export function parseFlp(input) {
   const playlistPayloads = [];
   const patterns = new Map();
   const channels = new Map();
+  const channelTypes = new Map();
+  const sampleChannels = new Map();
 
   while (offset < eventDataEnd) {
     const event = bytes[offset++];
@@ -231,6 +252,8 @@ export function parseFlp(input) {
     if (event === 64) {
       currentChannel = view.getUint16(offset, true);
       if (!channels.has(currentChannel)) channels.set(currentChannel, `Channel ${currentChannel + 1}`);
+    } else if (event === 21) {
+      channelTypes.set(currentChannel, bytes[offset]);
     } else if (event === 65) {
       currentPattern = view.getUint16(offset, true);
       if (!patterns.has(currentPattern)) patterns.set(currentPattern, { id: currentPattern, name: `Pattern ${currentPattern}`, notes: [] });
@@ -241,7 +264,19 @@ export function parseFlp(input) {
     } else if (event === 199) {
       version = readString(bytes.subarray(offset, offset + length), false);
     } else if (event === 203 && length > 2) {
-      channels.set(currentChannel, readString(bytes.subarray(offset, offset + length)));
+      const name = readString(bytes.subarray(offset, offset + length));
+      channels.set(currentChannel, name);
+      const sample = sampleChannels.get(currentChannel);
+      if (sample && !sample.name && name) sample.name = name;
+    } else if (event === 196) {
+      const path = readString(bytes.subarray(offset, offset + length));
+      if (path) {
+        const previous = sampleChannels.get(currentChannel);
+        sampleChannels.set(currentChannel, {
+          path,
+          name: previous?.name || channels.get(currentChannel) || "",
+        });
+      }
     } else if ((event === 208 || event === 224) && currentPattern != null && patterns.has(currentPattern)) {
       appendPatternNotes(
         patterns.get(currentPattern),
@@ -257,8 +292,14 @@ export function parseFlp(input) {
     offset += length;
   }
 
+  const audioChannels = new Map(sampleChannels);
+  for (const [id, name] of channels) {
+    if (channelTypes.get(id) !== 4 || audioChannels.has(id)) continue;
+    audioChannels.set(id, { path: "", name });
+  }
+
   const decodedPlaylists = playlistPayloads
-    .map(payload => decodePlaylist(payload, patterns, version))
+    .map(payload => decodePlaylist(payload, patterns, audioChannels, version))
     .filter(Boolean);
   const playlist = decodedPlaylists.sort((left, right) => (
     right.clips.length - left.clips.length
@@ -277,13 +318,44 @@ export function parseFlp(input) {
   }
 
   const split = splitPatternsByChannel(patterns, clips, channels);
-  const renderPatterns = new Map(split.patterns.map(pattern => [pattern.id, pattern]));
-  clips = split.clips;
+  const audioClips = split.clips.filter(clip => clip.kind === "audio");
+  const annotatedAudioClips = audioClips.map(clip => {
+    const source = audioChannels.get(clip.sourceChannelId);
+    return {
+      ...clip,
+      samplePath: source?.path || null,
+      soundName: source?.name || soundNameFromReference(source?.path) || `Channel ${clip.sourceChannelId + 1}`,
+      soundKey: source?.path || source?.name || `channel-${clip.sourceChannelId}`,
+    };
+  });
+  const audioLayers = groupAudioClips(annotatedAudioClips, {
+    startId: Math.max(-1, ...split.patterns.map(pattern => pattern.id)) + 1,
+    ppq,
+  });
+  const groupedAudioClips = new Map(audioClips.map((clip, index) => [clip, audioLayers.clips[index]]));
+  clips = split.clips.map(clip => groupedAudioClips.get(clip) || clip);
+  const renderPatterns = new Map([
+    ...split.patterns.map(pattern => [pattern.id, pattern]),
+    ...audioLayers.patterns.map(pattern => [pattern.id, pattern]),
+  ]);
+  const audioPatternIds = new Set(audioLayers.patterns.map(pattern => pattern.id));
 
   const notes = [];
   for (const clip of clips) {
     const pattern = renderPatterns.get(clip.patternId);
     if (!pattern) continue;
+    if (audioPatternIds.has(pattern.id)) {
+      notes.push({
+        at: clip.at,
+        length: Math.max(1, clip.length),
+        key: pattern.notes[0].key,
+        channel: pattern.notes[0].channel,
+        velocity: pattern.notes[0].velocity,
+        track: clip.track,
+        patternId: pattern.id,
+      });
+      continue;
+    }
     for (const note of pattern.notes) {
       if (note.position >= clip.length) continue;
       notes.push({

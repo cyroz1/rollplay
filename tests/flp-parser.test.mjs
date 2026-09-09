@@ -53,6 +53,17 @@ function makePlaylistRecord(position, recordSize) {
   return bytes;
 }
 
+function makeChannelPlaylistRecord(position, recordSize, channelId) {
+  const bytes = makePlaylistRecord(position, recordSize);
+  const view = new DataView(bytes.buffer);
+  view.setUint16(6, channelId, true);
+  return bytes;
+}
+
+function utf16(value) {
+  return new Uint8Array(Buffer.from(`${value}\0`, "utf16le"));
+}
+
 function makeFlp({ recordSize, clipCount, version = "25.2.4.4960", noteEvent = 224, noteChannels = [0, 0, 0] }) {
   const notes = concat(...noteChannels.map((channel, index) => makeNote(index * 96, channel)));
   const playlist = concat(...Array.from({ length: clipCount }, (_, index) => makePlaylistRecord(index * 384, recordSize)));
@@ -115,6 +126,46 @@ test("keeps all FL Studio 26 playlist clips", () => {
   const project = parseFlp(makeFlp({ recordSize: 88, clipCount: 172, version: "26.1.4.5589" }));
   assert.equal(project.clips.length, 172);
   assert.equal(project.notes.length, 172 * 3);
+});
+
+test("turns direct FL Studio audio playlist clips into grouped percussion layers", () => {
+  const playlist = concat(
+    makePlaylistRecord(0, 80),
+    makeChannelPlaylistRecord(384, 80, 11),
+    makeChannelPlaylistRecord(768, 80, 11),
+    makeChannelPlaylistRecord(1152, 80, 11),
+  );
+  const events = concat(
+    new Uint8Array([64, 11, 0, 21, 4]),
+    blobEvent(203, utf16("FX Hit")),
+    blobEvent(196, utf16("/Samples/FX Hit.wav")),
+    new Uint8Array([65, 1, 0]),
+    blobEvent(224, concat(makeNote(0))),
+    blobEvent(199, encoder.encode("25.2.4.4960\0")),
+    blobEvent(233, playlist),
+  );
+  const bytes = new Uint8Array(22 + events.length);
+  const view = new DataView(bytes.buffer);
+  bytes.set(encoder.encode("FLhd"), 0);
+  view.setUint32(4, 6, true);
+  view.setUint16(10, 12, true);
+  view.setUint16(12, 96, true);
+  bytes.set(encoder.encode("FLdt"), 14);
+  view.setUint32(18, events.length, true);
+  bytes.set(events, 22);
+
+  const project = parseFlp(bytes);
+  const audioPatterns = project.patterns.filter(pattern => pattern.isAudio);
+  const audioClips = project.clips.filter(clip => clip.kind === "audio");
+  const audioNotes = project.notes.filter(note => note.channel === 10);
+
+  assert.equal(audioPatterns.length, 1);
+  assert.equal(audioPatterns[0].name, "FX Hit");
+  assert.equal(audioPatterns[0].isPercussion, true);
+  assert.equal(audioClips.length, 3);
+  assert.equal(audioNotes.length, 3);
+  assert.deepEqual(audioNotes.map(note => note.at), [384, 768, 1152]);
+  assert.equal(new Set(audioClips.map(clip => clip.patternId)).size, 1);
 });
 
 test("parses the supplied FL Studio 26 fixture when available", async context => {

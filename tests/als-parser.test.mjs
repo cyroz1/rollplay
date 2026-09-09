@@ -79,6 +79,41 @@ test("accepts plain Ableton XML and falls back to sequential session clips", asy
   assert.deepEqual(project.notes.map(note => note.at), [0, 3 * 960]);
 });
 
+test("turns Ableton arrangement audio clips into one percussion layer per unique sound", async () => {
+  const audioClip = (time, name) => `<AudioClip Time="${time}">
+    <CurrentStart Value="${time}" /><CurrentEnd Value="${Number(time) + 1}" />
+    <SampleRef><FileRef>
+      <Path Value="/samples/riser.wav" /><Name Value="riser.wav" />
+    </FileRef></SampleRef>
+    <Name Value="${name}" />
+  </AudioClip>`;
+  const xml = `<Ableton MajorVersion="12" MinorVersion="0">
+    <LiveSet><Transport><Tempo><Manual Value="124" /></Tempo></Transport><Tracks>
+      <AudioTrack Id="audio-a"><Name><EffectiveName Value="FX A" /></Name>
+        <DeviceChain><MainSequencer><Sample><ArrangerAutomation><Events>
+          ${audioClip(0, "Riser")}${audioClip(4, "Riser copy")}
+        </Events></ArrangerAutomation></Sample></MainSequencer></DeviceChain>
+      </AudioTrack>
+      <AudioTrack Id="audio-b"><Name><EffectiveName Value="FX B" /></Name>
+        <DeviceChain><MainSequencer><Sample><ArrangerAutomation><Events>
+          ${audioClip(8, "Riser on another track")}
+        </Events></ArrangerAutomation></Sample></MainSequencer></DeviceChain>
+      </AudioTrack>
+    </Tracks></LiveSet>
+  </Ableton>`;
+  const project = await parseAls(xml);
+
+  assert.equal(project.channelCount, 2);
+  assert.deepEqual(project.tracks.map(track => track.kind), ["audio", "audio"]);
+  assert.equal(project.patterns.length, 1);
+  assert.equal(project.patterns[0].name, "riser.wav");
+  assert.equal(project.patterns[0].isAudio, true);
+  assert.equal(project.patterns[0].isPercussion, true);
+  assert.equal(project.clips.length, 3);
+  assert.deepEqual(project.notes.map(note => note.at), [0, 4 * 960, 8 * 960]);
+  assert.equal(new Set(project.notes.map(note => note.patternId)).size, 1);
+});
+
 test("rejects non-Ableton input", async () => {
   await assert.rejects(() => parseAls(new TextEncoder().encode("not an Ableton project")), /valid Ableton Live project/);
 });
