@@ -133,7 +133,7 @@ export class Visualizer {
     }
   }
 
-  noteY(note, height) {
+  noteY(note, height, layerStyles) {
     if (this.isStep(note)) {
       const lane = this.stepLanes.get(note.patternId) ?? Math.max(0, note.channel - 8);
       const laneCount = Math.max(1, this.stepLanes.size);
@@ -144,7 +144,7 @@ export class Visualizer {
       const centeredLane = lane - (laneCount - 1) / 2;
       return clamp(baseCenter + centeredLane * laneSpacing - offset, height * .04, height * .96);
     }
-    const style = this.layerStyle(note.patternId);
+    const style = this.styleForNote(note, layerStyles);
     const rawOctaveOffset = Number(style.octaveOffset ?? 0);
     const octaveOffset = Number.isFinite(rawOctaveOffset) ? Math.max(-4, Math.min(4, rawOctaveOffset)) : 0;
     const key = note.key + octaveOffset * 12;
@@ -167,6 +167,11 @@ export class Visualizer {
       ...configured,
       opacity: Math.max(0, Math.min(1, Number(configured.opacity ?? fallback.opacity))),
     };
+  }
+
+  styleForNote(note, layerStyles) {
+    const cached = layerStyles?.get(note.patternId);
+    return cached || this.layerStyle(note.patternId);
   }
 
   shadowStyle() {
@@ -205,8 +210,8 @@ export class Visualizer {
     return this.layerSpeedForIndex(index < 0 ? order.length - 1 : index, Math.max(1, order.length));
   }
 
-  color(note) {
-    const style = this.layerStyle(note.patternId);
+  color(note, layerStyles) {
+    const style = this.styleForNote(note, layerStyles);
     return style.colorMode === "solid" ? [style.primaryColor, style.primaryColor] : [style.primaryColor, style.secondaryColor];
   }
 
@@ -333,14 +338,14 @@ export class Visualizer {
     context.globalAlpha = 1;
   }
 
-  drawNote(note, tick, width, height, hitX, pixelsPerTick, depth = this.layerDepth(note.patternId), speed = this.layerSpeed(note.patternId)) {
+  drawNote(note, tick, width, height, hitX, pixelsPerTick, depth = this.layerDepth(note.patternId), speed = this.layerSpeed(note.patternId), layerStyles) {
     const context = this.context;
-    const style = this.layerStyle(note.patternId);
-    const [main, light] = this.color(note);
+    const style = this.styleForNote(note, layerStyles);
+    const [main, light] = this.color(note, layerStyles);
     const rawX = hitX + (note.at - tick) * pixelsPerTick * speed;
     const baseScale = width / 1080;
     const motion = this.noteMotion(note, tick, baseScale, style);
-    const rawY = this.noteY(note, height) + motion.offset;
+    const rawY = this.noteY(note, height, layerStyles) + motion.offset;
     const noteScale = Number(this.settings.noteSize ?? 100) / 100;
     const step = this.isStep(note);
     const noteWidth = Math.max((step ? 13 : 20) * baseScale * Math.sqrt(noteScale), note.length * pixelsPerTick);
@@ -433,7 +438,7 @@ export class Visualizer {
     }
   }
 
-  drawHit(note, tick, width, height, hitX) {
+  drawHit(note, tick, width, height, hitX, layerStyles) {
     const pulseLife = this.project.ppq * 1.04;
     const elapsed = tick - note.at;
     if (elapsed < 0 || elapsed > pulseLife) return;
@@ -442,10 +447,10 @@ export class Visualizer {
     const life = elapsed / pulseLife;
     const fade = Math.pow(1 - life, 1.35);
     const eased = 1 - Math.pow(1 - life, 3);
-    const style = this.layerStyle(note.patternId);
-    const [main, light] = this.color(note);
+    const style = this.styleForNote(note, layerStyles);
+    const [main, light] = this.color(note, layerStyles);
     const scale = baseScale;
-    const y = this.noteY(note, height);
+    const y = this.noteY(note, height, layerStyles);
 
     context.globalAlpha = fade * fade * .24 * style.opacity;
     context.fillStyle = light;
@@ -497,10 +502,11 @@ export class Visualizer {
       visible.push(note);
     }
     const layerOrder = settings.layerOrder?.length ? settings.layerOrder : project.patterns.map(pattern => pattern.id);
+    const layerStyles = new Map(layerOrder.map(patternId => [patternId, this.layerStyle(patternId)]));
     for (let index = layerOrder.length - 1; index >= 0; index--) {
       const depth = this.layerDepthForIndex(index, layerOrder.length);
       const speed = this.layerSpeedForIndex(index, layerOrder.length);
-      for (const note of visible) if (note.patternId === layerOrder[index]) this.drawNote(note, tick, width, height, hitX, pixelsPerTick, depth, speed);
+      for (const note of visible) if (note.patternId === layerOrder[index]) this.drawNote(note, tick, width, height, hitX, pixelsPerTick, depth, speed, layerStyles);
     }
 
     if (settings.effects) {
@@ -512,7 +518,7 @@ export class Visualizer {
         if (settings.enabledPatterns.has(note.patternId)) activeHits.push(note);
       }
       for (let index = layerOrder.length - 1; index >= 0; index--) {
-        for (const note of activeHits) if (note.patternId === layerOrder[index]) this.drawHit(note, tick, width, height, hitX);
+        for (const note of activeHits) if (note.patternId === layerOrder[index]) this.drawHit(note, tick, width, height, hitX, layerStyles);
       }
     }
     context.restore();

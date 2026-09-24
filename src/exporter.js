@@ -1,12 +1,33 @@
 import { Visualizer } from "./visualizer.js";
-import { muxMp4 } from "./mp4-muxer.js";
+import { muxMp4, beginStreamedMux } from "./mp4-muxer.js";
 
 function copyChunk(chunk) {
   const data = new Uint8Array(chunk.byteLength);
   chunk.copyTo(data);
   return data;
 }
-async function encodeAudio(audioBuffer, onProgress) {
+
+/** Opens a File System Access writable for streamed MP4 output, or null when unavailable. */
+async function openExportStreamer(suggestedName) {
+  if (typeof window === "undefined" || typeof window.showSaveFilePicker !== "function") return null;
+  let handle;
+  try {
+    handle = await window.showSaveFilePicker({
+      suggestedName: suggestedName || "visualizer.mp4",
+      types: [{ description: "MP4 video", accept: { "video/mp4": [".mp4"] } }],
+    });
+  } catch (error) {
+    if (error?.name === "AbortError") throw new Error("Export cancelled.");
+    return null; // File System Access blocked or unavailable: fall back to the in-memory path.
+  }
+  try {
+    return await beginStreamedMux(await handle.createWritable());
+  } catch {
+    return null;
+  }
+}
+
+async function encodeAudio(audioBuffer, onProgress, streamer) {
   if (!audioBuffer || typeof AudioEncoder === "undefined") return null;
   const sampleRate = audioBuffer.sampleRate;
   const channels = Math.min(audioBuffer.numberOfChannels, 2);
@@ -20,7 +41,10 @@ async function encodeAudio(audioBuffer, onProgress) {
       if (metadata?.decoderConfig?.description) track.description = new Uint8Array(metadata.decoderConfig.description);
       const timestamp = Math.round(chunk.timestamp / 1_000_000 * sampleRate);
       const duration = Math.max(1, Math.round((chunk.duration || 1024 / sampleRate * 1_000_000) / 1_000_000 * sampleRate));
-      track.samples.push({ index: track.samples.length, data: copyChunk(chunk), timestamp, duration, key: true });
+      const data = copyChunk(chunk);
+      const sample = { index: track.samples.length, data, size: data.length, offset: 0, timestamp, duration, key: true };
+      track.samples.push(sample);
+      streamer?.streamSample(sample);
       track.duration = Math.max(track.duration, timestamp + duration);
     },
     error(error) { throw error; },
@@ -36,6 +60,7 @@ async function encodeAudio(audioBuffer, onProgress) {
     encoder.encode(audio);
     audio.close();
     if (encoder.encodeQueueSize > 20) await new Promise(resolve => setTimeout(resolve, 0));
+    await streamer?.drain();
     if (offset % (blockSize * 80) === 0) onProgress?.(offset / audioBuffer.length * .12, "Encoding audio…");
   }
   await encoder.flush();
@@ -57,7 +82,7 @@ export function bitrateForMaxFileSize(maxSize, duration, audioBitrate = 0) {
   return Math.max(180_000, Math.floor(safeSize * 1_000_000 * 8 / safeDuration * .94 - safeAudioBitrate));
 }
 
-export async function renderMp4(project, settings, audioBuffer, onProgress) {
+export async function renderMp4(project, settings, audioBuffer, onProgress, suggestedName) {
   if (typeof VideoEncoder === "undefined") throw new Error("MP4 export requires a recent Chrome, Edge, or another browser with WebCodecs support.");
   const [width, height] = settings.resolution.split("x").map(Number);
   const fps = Number(settings.fps);
@@ -74,36 +99,51 @@ export async function renderMp4(project, settings, audioBuffer, onProgress) {
   const supported = await VideoEncoder.isConfigSupported(config);
   if (!supported.supported) throw new Error("This browser cannot encode H.264 at the selected resolution and frame rate.");
 
-  let encoderError;
-  const encoder = new VideoEncoder({
-    output(chunk, metadata) {
-      if (metadata?.decoderConfig?.description) video.description = new Uint8Array(metadata.decoderConfig.description);
-      const sampleDuration = Math.max(1, Math.round(chunk.duration || 1_000_000 / fps));
-      video.samples.push({ index: video.samples.length, data: copyChunk(chunk), timestamp: chunk.timestamp, duration: sampleDuration, key: chunk.type === "key" });
-      video.duration = Math.max(video.duration, chunk.timestamp + sampleDuration);
-    },
-    error(error) { encoderError = error; },
-  });
-  encoder.configure(config);
+  const streamer = await openExportStreamer(suggestedName);
+  try {
+    let encoderError;
+    const encoder = new VideoEncoder({
+      output(chunk, metadata) {
+        if (metadata?.decoderConfig?.description) video.description = new Uint8Array(metadata.decoderConfig.description);
+        const sampleDuration = Math.max(1, Math.round(chunk.duration || 1_000_000 / fps));
+        const data = copyChunk(chunk);
+        const sample = { index: video.samples.length, data, size: data.length, offset: 0, timestamp: chunk.timestamp, duration: sampleDuration, key: chunk.type === "key" };
+        video.samples.push(sample);
+        streamer?.streamSample(sample);
+        video.duration = Math.max(video.duration, chunk.timestamp + sampleDuration);
+      },
+      error(error) { encoderError = error; },
+    });
+    encoder.configure(config);
 
-  const audio = await encodeAudio(audioBuffer, onProgress);
-  for (let frame = 0; frame < frameCount; frame++) {
-    if (encoderError) throw encoderError;
-    visualizer.draw(frame / fps);
-    const videoFrame = new VideoFrame(canvas, { timestamp: Math.round(frame / fps * 1_000_000), duration: Math.round(1_000_000 / fps) });
-    encoder.encode(videoFrame, { keyFrame: frame % (fps * 2) === 0 });
-    videoFrame.close();
-    if (encoder.encodeQueueSize > 5) await new Promise(resolve => setTimeout(resolve, 0));
-    if (frame % 12 === 0) {
-      onProgress?.(.12 + frame / frameCount * .86, `Rendering frame ${frame.toLocaleString()} / ${frameCount.toLocaleString()}`);
-      await new Promise(resolve => setTimeout(resolve, 0));
+    const audio = await encodeAudio(audioBuffer, onProgress, streamer);
+    for (let frame = 0; frame < frameCount; frame++) {
+      if (encoderError) throw encoderError;
+      visualizer.draw(frame / fps);
+      const videoFrame = new VideoFrame(canvas, { timestamp: Math.round(frame / fps * 1_000_000), duration: Math.round(1_000_000 / fps) });
+      encoder.encode(videoFrame, { keyFrame: frame % (fps * 2) === 0 });
+      videoFrame.close();
+      if (encoder.encodeQueueSize > 5) await new Promise(resolve => setTimeout(resolve, 0));
+      if (frame % 12 === 0) {
+        onProgress?.(.12 + frame / frameCount * .86, `Rendering frame ${frame.toLocaleString()} / ${frameCount.toLocaleString()}`);
+        await streamer?.drain();
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
     }
+    await encoder.flush();
+    encoder.close();
+    await streamer?.drain();
+    if (!video.description) throw new Error("The browser did not provide H.264 codec configuration.");
+    onProgress?.(.99, "Building MP4…");
+    const tracks = audio && audio.samples.length ? [video, audio] : [video];
+    let blob = null;
+    let size;
+    if (streamer) size = await streamer.finish(tracks);
+    else { blob = muxMp4(video, audio); size = blob.size; }
+    onProgress?.(1, `Complete · ${(size / 1_000_000).toFixed(1)} MB`);
+    return { size, blob };
+  } catch (error) {
+    await streamer?.abort();
+    throw error;
   }
-  await encoder.flush();
-  encoder.close();
-  if (!video.description) throw new Error("The browser did not provide H.264 codec configuration.");
-  onProgress?.(.99, "Building MP4…");
-  const result = muxMp4(video, audio);
-  onProgress?.(1, `Complete · ${(result.size / 1_000_000).toFixed(1)} MB`);
-  return result;
 }

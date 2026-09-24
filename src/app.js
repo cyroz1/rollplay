@@ -600,12 +600,17 @@ async function exportVideo() {
   element("header-export").disabled = true;
   element("render-progress").classList.remove("hidden");
   try {
-    const blob = await renderMp4(state.project, state.settings, state.audioBuffer, (progress, label) => {
+    const fileName = `${state.fileName}-visualizer.mp4`;
+    const result = await renderMp4(state.project, state.settings, state.audioBuffer, (progress, label) => {
       element("progress-fill").style.width = `${Math.round(progress * 100)}%`;
       element("progress-label").textContent = label;
-    });
-    download(blob, `${state.fileName}-visualizer.mp4`);
-    notify(`Exported MP4 · ${(blob.size / 1_000_000).toFixed(1)} MB`, 5000);
+    }, fileName);
+    if (result.blob) {
+      download(result.blob, fileName);
+      notify(`Exported MP4 · ${(result.size / 1_000_000).toFixed(1)} MB`, 5000);
+    } else {
+      notify(`Saved MP4 · ${(result.size / 1_000_000).toFixed(1)} MB`, 5000);
+    }
   } catch (error) {
     element("progress-label").textContent = error.message;
     notify(error.message, 6500);

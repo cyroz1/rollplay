@@ -68,7 +68,7 @@ function trackBox(track, id, movieTimescale) {
   const timingRuns = runLengths(durations);
   const stts = full("stts", 0, 0, u32(timingRuns.length), ...timingRuns.map(([count, sampleDuration]) => concat(u32(count), u32(sampleDuration))));
   const stsc = full("stsc", 0, 0, u32(1), u32(1), u32(1), u32(1));
-  const stsz = full("stsz", 0, 0, u32(0), u32(track.samples.length), ...track.samples.map(sample => u32(sample.data.length)));
+  const stsz = full("stsz", 0, 0, u32(0), u32(track.samples.length), ...track.samples.map(sample => u32(sample.size ?? sample.data.length)));
   const stco = full("stco", 0, 0, u32(track.samples.length), ...track.samples.map(sample => u32(sample.offset)));
   const tables = [stsd, stts, stsc, stsz, stco];
   if (isVideo) {
@@ -78,9 +78,20 @@ function trackBox(track, id, movieTimescale) {
   return box("trak", tkhd, box("mdia", mdhd, hdlr, box("minf", header, dinf, box("stbl", ...tables))));
 }
 
+function ftypBox() {
+  return box("ftyp", ascii.encode("isom"), u32(0x200), ascii.encode("isom"), ascii.encode("iso2"), ascii.encode("avc1"), ascii.encode("mp41"));
+}
+
+function moovBox(tracks) {
+  const movieTimescale = 1000;
+  const movieDuration = Math.max(...tracks.map(track => Math.round(track.duration / track.timescale * movieTimescale)));
+  const mvhd = full("mvhd", 0, 0, u32(0), u32(0), u32(movieTimescale), u32(movieDuration), u32(0x00010000), u16(0x0100), u16(0), new Uint8Array(8), MATRIX, new Uint8Array(24), u32(tracks.length + 1));
+  return box("moov", mvhd, ...tracks.map((track, index) => trackBox(track, index + 1, movieTimescale)));
+}
+
 /** Minimal standards-compliant MP4 multiplexer for WebCodecs H.264 + AAC. */
 export function muxMp4(video, audio = null) {
-  const ftyp = box("ftyp", ascii.encode("isom"), u32(0x200), ascii.encode("isom"), ascii.encode("iso2"), ascii.encode("avc1"), ascii.encode("mp41"));
+  const ftyp = ftypBox();
   const tracks = audio && audio.samples.length ? [video, audio] : [video];
   const ordered = tracks.flatMap(track => track.samples.map(sample => ({ ...sample, track, time: sample.timestamp / track.timescale }))).sort((left, right) => left.time - right.time);
   let cursor = ftyp.length + 8;
@@ -91,9 +102,45 @@ export function muxMp4(video, audio = null) {
     cursor += sample.data.length;
   }
   const mdat = box("mdat", ...payloads);
-  const movieTimescale = 1000;
-  const movieDuration = Math.max(...tracks.map(track => Math.round(track.duration / track.timescale * movieTimescale)));
-  const mvhd = full("mvhd", 0, 0, u32(0), u32(0), u32(movieTimescale), u32(movieDuration), u32(0x00010000), u16(0x0100), u16(0), new Uint8Array(8), MATRIX, new Uint8Array(24), u32(tracks.length + 1));
-  const moov = box("moov", mvhd, ...tracks.map((track, index) => trackBox(track, index + 1, movieTimescale)));
+  const moov = moovBox(tracks);
   return new Blob([ftyp, mdat, moov], { type: "video/mp4" });
+}
+
+/**
+ * Streams mdat payloads to a FileSystemWritableFileStream (from showSaveFilePicker)
+ * while encoding, so only sample metadata (offset/size for stco/stsz) stays in memory.
+ * The on-disk layout matches muxMp4 exactly: ftyp, then mdat (its size is patched in
+ * once known), then moov. Sample offsets use the same ftyp.length + 8 base and
+ * cumulative sizes as the in-memory path.
+ */
+export async function beginStreamedMux(writable) {
+  const ftyp = ftypBox();
+  await writable.write(ftyp);
+  const mdatHeaderAt = ftyp.length;
+  await writable.write(new Uint8Array(8)); // mdat size placeholder, patched in finish()
+  const state = { cursor: ftyp.length + 8, chain: Promise.resolve() };
+  return {
+    streamSample(sample) {
+      sample.offset = state.cursor;
+      state.cursor += sample.size;
+      const data = sample.data;
+      sample.data = null; // bytes are queued for writing; only metadata stays in memory
+      state.chain = state.chain.then(() => writable.write(data));
+    },
+    drain() { return state.chain; },
+    async finish(tracks) {
+      await state.chain;
+      const mdatSize = state.cursor - ftyp.length;
+      await writable.seek(mdatHeaderAt);
+      await writable.write(concat(u32(mdatSize), ascii.encode("mdat")));
+      await writable.seek(state.cursor);
+      const moov = moovBox(tracks);
+      await writable.write(moov);
+      await writable.close();
+      return state.cursor + moov.length;
+    },
+    async abort() {
+      try { await writable.abort(); } catch { /* already closed or never opened */ }
+    },
+  };
 }
