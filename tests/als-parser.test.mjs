@@ -117,3 +117,28 @@ test("turns Ableton arrangement audio clips into one percussion layer per unique
 test("rejects non-Ableton input", async () => {
   await assert.rejects(() => parseAls(new TextEncoder().encode("not an Ableton project")), /valid Ableton Live project/);
 });
+
+test("trims notes cut by a clip's left edge instead of clamping them to zero", async () => {
+  const xml = `<Ableton MajorVersion="12" MinorVersion="0">
+    <LiveSet><Transport><Tempo><Manual Value="120" /></Tempo></Transport><Tracks>
+      <MidiTrack Id="trim-track"><Name><EffectiveName Value="Trim" /></Name>
+        <DeviceChain><MainSequencer><ClipTimeable><Arranger><Events>
+          <MidiClip Time="0">
+            <CurrentStart Value="0" /><CurrentEnd Value="4" />
+            <Loop><LoopStart Value="2" /><LoopEnd Value="6" /><LoopOn Value="true" /></Loop>
+            <Notes><KeyTracks><KeyTrack><Notes>
+              <MidiNoteEvent Time="1" Duration="2" Velocity="100" IsEnabled="true" />
+              <MidiNoteEvent Time="0" Duration="1" Velocity="100" IsEnabled="true" />
+            </Notes><MidiKey Value="60" /></KeyTrack></KeyTracks></Notes>
+          </MidiClip>
+        </Events></Arranger></ClipTimeable></MainSequencer></DeviceChain>
+      </MidiTrack>
+    </Tracks></LiveSet>
+  </Ableton>`;
+  const project = await parseAls(xml);
+
+  assert.equal(project.notes.length, 1, "The fully cut note should be dropped.");
+  const note = project.notes[0];
+  assert.equal(note.at, 0, "The trimmed note should start at the clip's left edge.");
+  assert.equal(note.length, 960, "The trimmed note should keep only its audible remainder, not the full original duration.");
+});

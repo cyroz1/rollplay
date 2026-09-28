@@ -2,6 +2,7 @@ import { parseFlp } from "./flp-parser.js";
 import { parseAls } from "./als-parser.js";
 import { createMidi } from "./midi-export.js";
 import { Visualizer, createLayerStyle } from "./visualizer.js";
+import { computePeaks, matchAudioPattern } from "./waveform.js";
 import { autoVideoBitrate, renderMp4 } from "./exporter.js";
 import { createColorRamp } from "./color-utils.js";
 import { findPresetRecord, readPresetRecords, removePresetRecord, upsertPresetRecord, writePresetRecords } from "./preset-store.js";
@@ -519,7 +520,20 @@ function refreshPatterns() {
       row.classList.toggle("muted-pattern", !state.settings.enabledPatterns.has(pattern.id));
       state.visualizer.draw(currentPosition());
     };
-    row.append(selection, swatch, name, layerControls, mode, toggle);
+    const trailing = [toggle];
+    if (pattern.isAudio) {
+      const attach = document.createElement("button");
+      const attached = pattern.waveformPeaks?.length > 0;
+      attach.className = `pattern-attach${attached ? " attached" : ""}`;
+      attach.setAttribute("aria-label", attached
+        ? `${pattern.name}: waveform attached from ${pattern.waveformName || "audio file"}. Click to replace it.`
+        : `${pattern.name}: attach an audio file to display it as a waveform.`);
+      attach.title = attached ? `Waveform · ${pattern.waveformName || "attached"} (click to replace)` : "Attach audio to show a waveform";
+      attach.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h2l2-6 3 12 3-16 3 14 2.5-8 1.5 4H21"/></svg>';
+      attach.onclick = () => openSamplePicker(pattern.id);
+      trailing.unshift(attach);
+    }
+    row.append(selection, swatch, name, layerControls, mode, ...trailing);
     container.append(row);
   }
 }
@@ -589,6 +603,56 @@ async function loadAudio(file) {
   } catch (error) {
     notify(`Unable to load audio: ${error.message}`, 5000);
     console.error(error);
+  }
+}
+
+function openSamplePicker(patternId) {
+  if (!state.project) return;
+  const input = element("sample-audio-input");
+  input.dataset.patternId = String(patternId);
+  input.click();
+}
+
+async function decodeSampleFile(file) {
+  try {
+    state.audioContext ||= new AudioContext();
+  } catch {
+    throw new Error("This browser cannot decode audio files.");
+  }
+  return state.audioContext.decodeAudioData(await file.arrayBuffer());
+}
+
+/**
+ * Attach dropped audio files to audio layers so they render as waveforms.
+ * Files are matched to layers by filename; anything unmatched lands on the
+ * layer whose attach button was clicked.
+ */
+async function attachSampleFiles(patternId, files) {
+  if (!state.project || !files.length) return;
+  const audioPatterns = state.project.patterns.filter(pattern => pattern.isAudio);
+  const fallback = audioPatterns.find(pattern => String(pattern.id) === String(patternId)) || null;
+  let attached = 0;
+  const unmatched = [];
+  for (const file of files) {
+    const target = matchAudioPattern(audioPatterns, file.name) || fallback;
+    if (!target) { unmatched.push(file.name); continue; }
+    try {
+      const buffer = await decodeSampleFile(file);
+      target.waveformPeaks = computePeaks(buffer);
+      target.waveformName = file.name;
+      attached += 1;
+    } catch (error) {
+      console.error(error);
+      unmatched.push(file.name);
+    }
+  }
+  refreshPatterns();
+  state.visualizer?.draw(currentPosition());
+  if (attached) {
+    notify(`Attached ${attached} waveform${attached === 1 ? "" : "s"}` +
+      (unmatched.length ? ` · ${unmatched.length} file${unmatched.length === 1 ? "" : "s"} did not match an audio layer` : ""));
+  } else {
+    notify("No audio files matched an audio layer.", 4000);
   }
 }
 
@@ -698,6 +762,10 @@ function refreshSettingsControls() {
 function bindControls() {
   element("project-input").addEventListener("change", event => loadProject(event.target.files[0]));
   element("audio-input").addEventListener("change", event => loadAudio(event.target.files[0]));
+  element("sample-audio-input").addEventListener("change", event => {
+    attachSampleFiles(event.target.dataset.patternId, Array.from(event.target.files || []));
+    event.target.value = "";
+  });
   const dropzone = element("project-dropzone");
   for (const eventName of ["dragenter", "dragover"]) dropzone.addEventListener(eventName, event => { event.preventDefault(); dropzone.classList.add("dragging"); });
   for (const eventName of ["dragleave", "dragend"]) dropzone.addEventListener(eventName, () => dropzone.classList.remove("dragging"));

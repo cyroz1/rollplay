@@ -338,7 +338,45 @@ export class Visualizer {
     context.globalAlpha = 1;
   }
 
+  waveformPeaksFor(patternId) {
+    return this.waveformPeaksByPattern?.get(patternId) || null;
+  }
+
+  drawWaveform(note, tick, width, height, hitX, pixelsPerTick, depth, speed, layerStyles, peaks) {
+    const context = this.context;
+    const style = this.styleForNote(note, layerStyles);
+    const [main, light] = this.color(note, layerStyles);
+    const x0 = hitX + (note.at - tick) * pixelsPerTick * speed;
+    const x1 = x0 + Math.max(1, note.length * pixelsPerTick * speed);
+    if (x1 < -25 || x0 > width + 30) return;
+    const centerY = this.noteY(note, height, layerStyles);
+    const noteScale = Number(this.settings.noteSize ?? 100) / 100;
+    const waveHeight = Math.max(10, height * .078 * Math.sqrt(noteScale));
+    const fade = Math.min(1, Math.max(.18, 1 - Math.max(0, x0 - width * .78) / (width * .43)));
+    const gradient = context.createLinearGradient(x0, 0, x1, 0);
+    gradient.addColorStop(0, main);
+    gradient.addColorStop(1, light);
+    context.save();
+    context.globalAlpha = fade * style.opacity;
+    context.fillStyle = gradient;
+    const span = Math.max(1e-6, x1 - x0);
+    const lastBucket = peaks.length - 1;
+    const startX = Math.max(0, Math.floor(x0));
+    const endX = Math.min(width, Math.ceil(x1));
+    for (let x = startX; x < endX; x++) {
+      const peak = peaks[Math.min(lastBucket, Math.floor((x - x0) / span * peaks.length))];
+      const barHeight = Math.max(1, peak * waveHeight);
+      context.fillRect(x, centerY - barHeight / 2, 1, barHeight);
+    }
+    context.restore();
+  }
+
   drawNote(note, tick, width, height, hitX, pixelsPerTick, depth = this.layerDepth(note.patternId), speed = this.layerSpeed(note.patternId), layerStyles) {
+    const peaks = this.waveformPeaksFor(note.patternId);
+    if (peaks) {
+      this.drawWaveform(note, tick, width, height, hitX, pixelsPerTick, depth, speed, layerStyles, peaks);
+      return;
+    }
     const context = this.context;
     const style = this.styleForNote(note, layerStyles);
     const [main, light] = this.color(note, layerStyles);
@@ -439,6 +477,7 @@ export class Visualizer {
   }
 
   drawHit(note, tick, width, height, hitX, layerStyles) {
+    if (this.waveformPeaksFor(note.patternId)) return;
     const pulseLife = this.project.ppq * 1.04;
     const elapsed = tick - note.at;
     if (elapsed < 0 || elapsed > pulseLife) return;
@@ -503,6 +542,10 @@ export class Visualizer {
     }
     const layerOrder = settings.layerOrder?.length ? settings.layerOrder : project.patterns.map(pattern => pattern.id);
     const layerStyles = new Map(layerOrder.map(patternId => [patternId, this.layerStyle(patternId)]));
+    this.waveformPeaksByPattern = new Map();
+    for (const pattern of project.patterns) {
+      if (pattern.isAudio && pattern.waveformPeaks?.length) this.waveformPeaksByPattern.set(pattern.id, pattern.waveformPeaks);
+    }
     for (let index = layerOrder.length - 1; index >= 0; index--) {
       const depth = this.layerDepthForIndex(index, layerOrder.length);
       const speed = this.layerSpeedForIndex(index, layerOrder.length);

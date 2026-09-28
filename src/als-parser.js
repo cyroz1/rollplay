@@ -340,13 +340,15 @@ function parseClipNotes(clip, loopStart, loopLength, length, channel) {
     });
   }
 
-  const cleanNotes = notes
-    .filter(note => note.position + note.length > -EPSILON && note.position < length + EPSILON)
-    .map(note => ({
-      ...note,
-      position: Math.max(0, note.position),
-      length: Math.min(note.length, Math.max(MIN_NOTE_DURATION_BEATS, length - Math.max(0, note.position))),
-    }));
+  // Trim notes to the audible clip window. Notes ending before the window start
+  // were cut away by the clip's left edge; notes starting left of the window
+  // lose their cut portion instead of being clamped to the very beginning.
+  const cleanNotes = notes.flatMap(note => {
+    const windowStart = Math.max(0, note.position);
+    const windowEnd = Math.min(note.position + note.length, length);
+    if (windowEnd - windowStart < MIN_NOTE_DURATION_BEATS) return [];
+    return [{ ...note, position: windowStart, length: windowEnd - windowStart }];
+  });
   const noteEnd = cleanNotes.reduce((end, note) => Math.max(end, note.position + note.length), 0);
   const loopNode = firstDescendant(clip, "Loop");
   const loopOnNode = loopNode && (firstDescendant(loopNode, "LoopOn") || firstDescendant(loopNode, "Looping"));
