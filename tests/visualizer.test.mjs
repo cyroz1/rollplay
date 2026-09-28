@@ -244,7 +244,7 @@ test("layer parallax makes foreground layers travel faster than background layer
 test("fullscreen preview contains the canvas without stretching", async () => {
   const styles = await readFile(new URL("../styles.css", import.meta.url), "utf8");
   assert.match(styles, /\.preview-frame:fullscreen\s*\{[^}]*position:\s*fixed;[^}]*inset:\s*0;[^}]*width:\s*100vw;[^}]*height:\s*100vh;[^}]*aspect-ratio:\s*auto;/s);
-  assert.match(styles, /\.preview-frame:fullscreen\s+canvas\s*\{[^}]*width:\s*auto;[^}]*height:\s*auto;[^}]*max-width:\s*100%;[^}]*max-height:\s*100%;[^}]*object-fit:\s*contain;[^}]*object-position:\s*center;/s);
+  assert.match(styles, /\.preview-frame:fullscreen\s+canvas\s*\{[^}]*width:\s*auto;[^}]*height:\s*auto;[^}]*min-width:\s*0;[^}]*min-height:\s*0;[^}]*max-width:\s*100%;[^}]*max-height:\s*100%;[^}]*object-fit:\s*contain;[^}]*object-position:\s*center;/s);
 });
 
 test("customization controls are organized into accessible collapsible sections", async () => {
