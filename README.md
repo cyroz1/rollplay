@@ -20,6 +20,8 @@ A dependency-free, browser-native FL Studio and Ableton Live project visualizer,
 - Organizes visual, layer, and export controls into keyboard-accessible collapsible sections for a shorter, easier-to-scan settings rail.
 - Adjusts horizontal zoom from one-quarter to eight visible bars, including half-bar and quarter-bar views, changing piano-roll scale and perceived scroll speed in previews and exports.
 - Splits grouped patterns into independent instrument-channel layers while preserving their shared clip timing.
+- Turns imported arrangement audio clips into one percussion layer per unique sound.
+- Attaches audio files to those audio layers (by filename match or by picking a layer) to render them as waveform ribbons instead of percussion diamonds.
 - Loads MP3, WAV, OGG, FLAC, and other browser-supported audio formats.
 - Exports standards-compliant multi-track MIDI with project tempo.
 - Renders H.264/AAC MP4 directly in supported browsers using WebCodecs and a built-in ISO BMFF multiplexer.

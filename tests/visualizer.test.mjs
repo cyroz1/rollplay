@@ -244,7 +244,7 @@ test("layer parallax makes foreground layers travel faster than background layer
 test("fullscreen preview contains the canvas without stretching", async () => {
   const styles = await readFile(new URL("../styles.css", import.meta.url), "utf8");
   assert.match(styles, /\.preview-frame:fullscreen\s*\{[^}]*position:\s*fixed;[^}]*inset:\s*0;[^}]*width:\s*100vw;[^}]*height:\s*100vh;[^}]*aspect-ratio:\s*auto;/s);
-  assert.match(styles, /\.preview-frame:fullscreen\s+canvas\s*\{[^}]*width:\s*100%;[^}]*height:\s*100%;[^}]*max-width:\s*none;[^}]*max-height:\s*none;[^}]*object-fit:\s*contain;[^}]*object-position:\s*center;/s);
+  assert.match(styles, /\.preview-frame:fullscreen\s+canvas\s*\{[^}]*width:\s*auto;[^}]*height:\s*auto;[^}]*min-width:\s*0;[^}]*min-height:\s*0;[^}]*max-width:\s*100%;[^}]*max-height:\s*100%;[^}]*object-fit:\s*contain;[^}]*object-position:\s*center;/s);
 });
 
 test("customization controls are organized into accessible collapsible sections", async () => {
@@ -471,4 +471,41 @@ test("landscape preset drops notes toward a centered horizontal playhead", async
   visualizer.draw(.25);
   const descending = context2d.getImageData(noteX, Math.round(noteCenterY + project.ppq / 2 * pixelsPerTick), 1, 1).data;
   assert.ok(descending[1] < 250, "As playback progresses, notes should travel downward.");
+});
+
+test("audio layers with attached waveforms render bars instead of note shapes", () => {
+  const filled = [];
+  const paths = [];
+  const context = {
+    save() {}, restore() {},
+    createLinearGradient() { return { addColorStop() {} }; },
+    fillRect(x, y, w, h) { filled.push([x, y, w, h]); },
+    beginPath() { paths.push("beginPath"); },
+    moveTo() {}, lineTo() {}, closePath() {}, fill() {}, stroke() {},
+    set fillStyle(value) { this._fillStyle = value; },
+    get fillStyle() { return this._fillStyle; },
+    set globalAlpha(value) { this._globalAlpha = value; },
+    get globalAlpha() { return this._globalAlpha; },
+  };
+  const note = { at: 0, length: 96, key: 60, channel: 0, velocity: 100, patternId: 1 };
+  const peaks = new Float32Array(64).fill(0.5);
+  const project = {
+    tempo: 120, ppq: 96,
+    patterns: [{ id: 1, name: "riser.wav", isAudio: true, waveformPeaks: peaks, notes: [note] }],
+    notes: [note],
+  };
+  const layerStyles = new Map([[1, { ...createLayerStyle(0), colorMode: "solid", playedNoteHighlight: "none" }]]);
+  const visualizer = new Visualizer({ width: 1080, height: 1920, getContext: () => context }, project, { layerStyles });
+  visualizer.waveformPeaksByPattern = new Map([[1, peaks]]);
+
+  visualizer.drawNote(note, 0, 1080, 1920, 540, 1, 0, 1, layerStyles);
+  assert.ok(filled.length > 0, "The waveform should draw vertical bars for each pixel column.");
+  assert.equal(paths.length, 0, "Waveform notes should not draw rounded rectangles or diamonds.");
+
+  const hitCalls = [];
+  const hitContext = { ...context, fillRect() { hitCalls.push("fillRect"); } };
+  const hitVisualizer = new Visualizer({ width: 1080, height: 1920, getContext: () => hitContext }, project, { layerStyles });
+  hitVisualizer.waveformPeaksByPattern = new Map([[1, peaks]]);
+  hitVisualizer.drawHit(note, 0, 1080, 1920, 540, layerStyles);
+  assert.equal(hitCalls.length, 0, "Waveform notes should not draw hit pulses.");
 });
