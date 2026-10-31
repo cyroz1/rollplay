@@ -176,6 +176,7 @@ test("step percussion notes render as filled diamonds", () => {
     closePath() {},
     fill() { calls.push("fill"); fillStyles.push({ color: this.fillStyle, alpha: this.globalAlpha }); },
     stroke() { calls.push("stroke"); },
+    createLinearGradient() { return { addColorStop() {} }; },
   };
   const note = { at: 0, length: 96, key: 42, channel: 10, velocity: 100, patternId: 1 };
   const project = { tempo: 120, ppq: 96, patterns: [{ id: 1, name: "Percussion", notes: [note] }], notes: [note] };
