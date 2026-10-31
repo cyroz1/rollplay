@@ -263,6 +263,44 @@ test("edge zoom grows notes as they travel toward the edge of the frame", () => 
   assert.equal(visualizer.edgeZoomFactor(0, 1080, 1), 1, "Disabling edge zoom should keep sizes flat.");
 });
 
+test("background pulse follows the linked layer's notes", () => {
+  const notes = [
+    { at: 0, length: 96, key: 60, channel: 0, velocity: 100, patternId: 1 },
+    { at: 192, length: 96, key: 62, channel: 0, velocity: 100, patternId: 2 },
+  ];
+  const project = {
+    tempo: 120, ppq: 96,
+    patterns: [{ id: 1, name: "Lead", notes: [] }, { id: 2, name: "Pad", notes: [] }],
+    notes,
+  };
+  const settings = { backgroundPulseLayer: 2 };
+  const visualizer = new Visualizer({ width: 1080, height: 1920, getContext: () => ({}) }, project, settings);
+  assert.equal(visualizer.backgroundPulse(0), 0, "No pulse before the linked layer plays.");
+  assert.equal(visualizer.backgroundPulse(192), 1, "A hit on the linked layer should pulse at full brightness.");
+  settings.backgroundPulseLayer = 1;
+  const decayed = visualizer.backgroundPulse(96);
+  assert.ok(decayed > 0 && decayed < .5, "The pulse should decay after the hit.");
+  settings.backgroundPulseLayer = null;
+  assert.equal(visualizer.backgroundPulse(0), 0, "No linked layer should mean no pulse.");
+});
+
+test("faded grid strokes parallax bar lines per layer speed", () => {
+  const calls = [];
+  const context = {
+    save() {}, restore() {}, beginPath() { calls.push("beginPath"); },
+    moveTo() {}, lineTo() {}, stroke() { calls.push("stroke"); },
+  };
+  const project = {
+    tempo: 120, ppq: 96,
+    patterns: [{ id: 1, name: "Front", notes: [] }, { id: 2, name: "Back", notes: [] }],
+    notes: [],
+  };
+  const settings = { layerOrder: [1, 2], layerParallax: true, parallaxStrength: 100, backgroundGridColor: "#64748b" };
+  const visualizer = new Visualizer({ width: 1080, height: 1920, getContext: () => context }, project, settings);
+  visualizer.drawGrid(1080, 1920, 0, 200, 2);
+  assert.ok(calls.filter(call => call === "stroke").length >= 3, "Grid should stroke the horizontal lines plus one vertical set per distinct layer speed.");
+});
+
 test("fullscreen preview contains the canvas without stretching", async () => {
   const styles = await readFile(new URL("../styles.css", import.meta.url), "utf8");
   assert.match(styles, /\.preview-frame:fullscreen\s*\{[^}]*position:\s*fixed;[^}]*inset:\s*0;[^}]*width:\s*100vw;[^}]*height:\s*100vh;[^}]*aspect-ratio:\s*auto;/s);

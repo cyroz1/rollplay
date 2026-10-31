@@ -31,6 +31,8 @@ const state = {
     backgroundImage: null,
     backgroundImageName: "",
     backgroundImageFit: "cover",
+    backgroundGridColor: "#64748b",
+    backgroundPulseLayer: null,
     noteSize: 145,
     barsVisible: 3,
     melodyVerticalZoom: 100,
@@ -107,9 +109,25 @@ function notify(message, timeout = 3200) {
 function refreshBackgroundControls() {
   const mode = state.settings.backgroundMode ?? "solid";
   element("background-mode-input").value = mode;
-  element("background-solid-controls").classList.toggle("hidden", mode !== "solid");
+  element("background-solid-controls").classList.toggle("hidden", mode !== "solid" && mode !== "grid");
   element("background-gradient-controls").classList.toggle("hidden", mode !== "gradient");
   element("background-image-controls").classList.toggle("hidden", mode !== "image");
+  element("background-grid-controls").classList.toggle("hidden", mode !== "grid");
+  element("background-pulse-controls").classList.toggle("hidden", mode === "image");
+  element("background-grid-color").value = state.settings.backgroundGridColor;
+  const pulseSelect = element("background-pulse-layer-input");
+  pulseSelect.replaceChildren();
+  const offOption = document.createElement("option");
+  offOption.value = "";
+  offOption.textContent = "Off";
+  pulseSelect.appendChild(offOption);
+  for (const pattern of state.project?.patterns ?? []) {
+    const option = document.createElement("option");
+    option.value = String(pattern.id);
+    option.textContent = pattern.name || `Layer ${pattern.id}`;
+    pulseSelect.appendChild(option);
+  }
+  pulseSelect.value = state.settings.backgroundPulseLayer == null ? "" : String(state.settings.backgroundPulseLayer);
   element("background-input").value = state.settings.background;
   element("background-gradient-start").value = state.settings.backgroundGradientStart;
   element("background-gradient-end").value = state.settings.backgroundGradientEnd;
@@ -824,6 +842,11 @@ function bindControls() {
   element("background-image-input").onchange = event => loadBackgroundImage(event.target.files[0]);
   element("background-image-fit-input").onchange = event => {
     state.settings.backgroundImageFit = event.target.value;
+    state.visualizer?.draw(currentPosition());
+  };
+  element("background-grid-color").oninput = event => { state.settings.backgroundGridColor = event.target.value; state.visualizer?.draw(currentPosition()); };
+  element("background-pulse-layer-input").onchange = event => {
+    state.settings.backgroundPulseLayer = event.target.value === "" ? null : event.target.value;
     state.visualizer?.draw(currentPosition());
   };
   element("frame-preset-input").onchange = event => {

@@ -189,7 +189,7 @@
               <summary class="customization-summary"><span>Frame &amp; background</span><small>Canvas</small></summary>
               <div class="customization-group-content">
                 <label class="stacked-control"><span>Frame preset</span><select id="frame-preset-input"><option value="portrait">Portrait · 9:16</option><option value="landscape">Landscape · 16:9</option></select></label>
-                <label class="stacked-control"><span>Background</span><select id="background-mode-input" aria-label="Background mode"><option value="solid">Solid color</option><option value="gradient">Gradient</option><option value="image">Imported image</option></select></label>
+                <label class="stacked-control"><span>Background</span><select id="background-mode-input" aria-label="Background mode"><option value="solid">Solid color</option><option value="gradient">Gradient</option><option value="grid">Faded grid</option><option value="palette">Palette (animated)</option><option value="image">Imported image</option></select></label>
                 <div class="background-solid-controls" id="background-solid-controls">
                   <label class="control-row"><span>Background color</span><input id="background-input" type="color" value="#ffffff" aria-label="Background color" /></label>
                 </div>
@@ -202,6 +202,12 @@
                   <label class="button button-quiet background-image-button" for="background-image-input">Import image<input id="background-image-input" type="file" accept="image/*" /></label>
                   <small class="background-image-name" id="background-image-name">No image selected</small>
                   <label class="stacked-control"><span>Image fit</span><select id="background-image-fit-input" aria-label="Background image fit"><option value="cover">Cover</option><option value="contain">Contain</option><option value="stretch">Stretch</option></select></label>
+                </div>
+                <div class="background-grid-controls hidden" id="background-grid-controls">
+                  <label class="control-row"><span>Grid color</span><input id="background-grid-color" type="color" value="#64748b" aria-label="Grid color" /></label>
+                </div>
+                <div class="background-pulse-controls hidden" id="background-pulse-controls">
+                  <label class="stacked-control"><span>Brightness pulse on layer</span><select id="background-pulse-layer-input" aria-label="Background pulse layer"><option value="">Off</option></select></label>
                 </div>
               </div>
             </details>

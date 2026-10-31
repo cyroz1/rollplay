@@ -285,10 +285,98 @@ export class Visualizer {
     return width * Math.max(0, Math.min(1, position));
   }
 
-  drawBackground() {
+  backgroundPulse(tick) {
+    const linked = this.settings.backgroundPulseLayer;
+    if (linked === null || linked === undefined || linked === "") return 0;
+    const notes = this.project.notes;
+    if (!notes?.length) return 0;
+    let pulse = 0;
+    const start = lowerBound(notes, tick - this.project.ppq * 64);
+    for (let index = start; index < notes.length; index++) {
+      const note = notes[index];
+      if (note.at > tick) break;
+      if (String(note.patternId) !== String(linked)) continue;
+      if (tick < note.at + note.length) pulse = Math.max(pulse, .35);
+      const hit = Math.exp(-(tick - note.at) / (this.project.ppq * .45));
+      if (hit > pulse) pulse = hit;
+    }
+    return pulse;
+  }
+
+  applyBackgroundPulse(pulse) {
+    if (!(pulse > .003)) return;
+    const { canvas, context } = this;
+    context.save();
+    context.globalAlpha = Math.min(.38, pulse * .38);
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.restore();
+  }
+
+  drawPaletteBackground(seconds, pulse) {
+    const { canvas, context } = this;
+    context.fillStyle = "#0d0d12";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    const colors = [...this.patternColors.values()].map(pair => pair[0]);
+    const palette = colors.length ? colors : PALETTE.map(pair => pair[0]);
+    const count = Math.min(6, Math.max(3, palette.length));
+    const radius = Math.hypot(canvas.width, canvas.height) * .45;
+    context.save();
+    context.globalCompositeOperation = "lighter";
+    for (let index = 0; index < count; index++) {
+      const color = palette[index % palette.length];
+      const phase = index * 2.39996;
+      const centerX = canvas.width * (.5 + .38 * Math.sin(seconds * .11 + phase));
+      const centerY = canvas.height * (.5 + .38 * Math.cos(seconds * .09 + phase * 1.3));
+      const gradient = context.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
+      gradient.addColorStop(0, colorWithAlpha(color, .34 + pulse * .3));
+      gradient.addColorStop(1, colorWithAlpha(color, 0));
+      context.fillStyle = gradient;
+      context.fillRect(0, 0, canvas.width, canvas.height);
+    }
+    context.restore();
+    this.applyBackgroundPulse(pulse * .6);
+  }
+
+  drawGrid(width, height, tick, hitX, pixelsPerTick) {
+    const { context, settings, project } = this;
+    const color = /^#[\da-f]{6}$/i.test(settings.backgroundGridColor) ? settings.backgroundGridColor : "#64748b";
+    const layerOrder = settings.layerOrder?.length ? settings.layerOrder : project.patterns.map(pattern => pattern.id);
+    const count = Math.max(1, layerOrder.length);
+    context.save();
+    context.strokeStyle = color;
+    context.lineWidth = 1;
+    context.globalAlpha = .16;
+    const rowGap = Math.max(28, height / 24);
+    context.beginPath();
+    for (let y = rowGap; y < height; y += rowGap) { context.moveTo(0, y); context.lineTo(width, y); }
+    context.stroke();
+    const barTicks = project.ppq * 4;
+    const drawnSpeeds = new Set();
+    for (let index = count - 1; index >= 0; index--) {
+      const speed = this.layerSpeedForIndex(index, count);
+      const speedKey = Math.round(speed * 1000);
+      if (drawnSpeeds.has(speedKey)) continue;
+      drawnSpeeds.add(speedKey);
+      const spacing = barTicks * pixelsPerTick * speed;
+      if (spacing < 8) continue;
+      const depth = this.layerDepthForIndex(index, count);
+      context.globalAlpha = .1 + depth * .22;
+      const phase = (tick * pixelsPerTick * speed) % spacing;
+      let startX = (hitX - phase) % spacing;
+      if (startX > 0) startX -= spacing;
+      context.beginPath();
+      for (let x = startX; x <= width; x += spacing) { context.moveTo(x, 0); context.lineTo(x, height); }
+      context.stroke();
+    }
+    context.restore();
+  }
+
+  drawBackground(seconds = 0, tick = 0) {
     const { canvas, context, settings } = this;
     const solid = /^#[\da-f]{6}$/i.test(settings.background) ? settings.background : "#ffffff";
     const mode = settings.backgroundMode ?? "solid";
+    const pulse = mode === "image" ? 0 : this.backgroundPulse(tick);
     if (mode === "gradient") {
       const start = /^#[\da-f]{6}$/i.test(settings.backgroundGradientStart) ? settings.backgroundGradientStart : solid;
       const end = /^#[\da-f]{6}$/i.test(settings.backgroundGradientEnd) ? settings.backgroundGradientEnd : solid;
@@ -306,15 +394,23 @@ export class Visualizer {
       gradient.addColorStop(1, end);
       context.fillStyle = gradient;
       context.fillRect(0, 0, canvas.width, canvas.height);
+      this.applyBackgroundPulse(pulse);
+      return;
+    }
+    if (mode === "palette") {
+      this.drawPaletteBackground(seconds, pulse);
       return;
     }
 
     context.fillStyle = solid;
     context.fillRect(0, 0, canvas.width, canvas.height);
     const image = mode === "image" ? settings.backgroundImage : null;
-    if (!image || typeof context.drawImage !== "function") return;
-    const rect = backgroundImageRect(canvas.width, canvas.height, image.width, image.height, settings.backgroundImageFit);
-    context.drawImage(image, rect.x, rect.y, rect.width, rect.height);
+    if (image && typeof context.drawImage === "function") {
+      const rect = backgroundImageRect(canvas.width, canvas.height, image.width, image.height, settings.backgroundImageFit);
+      context.drawImage(image, rect.x, rect.y, rect.width, rect.height);
+      return;
+    }
+    if (mode === "solid") this.applyBackgroundPulse(pulse);
   }
 
   drawPlayhead(width, height, hitX) {
@@ -540,9 +636,20 @@ export class Visualizer {
     const shownAfter = Math.ceil((width - hitX + width * .2) / pixelsPerTick);
     context.globalAlpha = 1;
     context.setTransform(1, 0, 0, 1, 0, 0);
-    this.drawBackground();
+    this.drawBackground(seconds, tick);
     context.save();
     if (landscape) context.setTransform(0, -1, 1, 0, 0, canvas.height);
+    if ((settings.backgroundMode ?? "solid") === "grid") {
+      this.drawGrid(width, height, tick, hitX, pixelsPerTick);
+      const pulse = this.backgroundPulse(tick);
+      if (pulse > .003) {
+        context.save();
+        context.globalAlpha = Math.min(.38, pulse * .38);
+        context.fillStyle = "#ffffff";
+        context.fillRect(0, 0, width, height);
+        context.restore();
+      }
+    }
     if (settings.playhead) this.drawPlayhead(width, height, hitX);
 
     const start = Math.max(0, lowerBound(project.notes, tick - shownBefore) - 160);

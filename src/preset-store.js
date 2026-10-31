@@ -7,6 +7,8 @@ export const GLOBAL_PRESET_KEYS = Object.freeze([
   "backgroundGradientEnd",
   "backgroundGradientAngle",
   "backgroundImageFit",
+  "backgroundGridColor",
+  "backgroundPulseLayer",
   "noteSize",
   "barsVisible",
   "melodyVerticalZoom",
