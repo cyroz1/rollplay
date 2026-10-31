@@ -31,7 +31,7 @@ test("layer styles support independent colors, opacity, and note animations", ()
   const canvas = { width: 1080, height: 1920, getContext: () => ({}) };
   const visualizer = new Visualizer(canvas, project, settings);
 
-  assert.deepEqual(visualizer.color(note), ["#123456", "#123456"], "Solid layers should use the primary color at both gradient stops.");
+  assert.deepEqual(visualizer.color(note), ["#123456", "#899aab"], "Solid layers should keep the default palette's slight per-note gradient toward a lighter shade.");
   assert.equal(visualizer.layerStyle(1).opacity, .35);
   assert.equal(visualizer.layerStyle(1).particleAnimation, "float");
   assert.equal(visualizer.layerStyle(1).octaveOffset, 0);

@@ -223,7 +223,8 @@ export class Visualizer {
 
   color(note, layerStyles) {
     const style = this.styleForNote(note, layerStyles);
-    return style.colorMode === "solid" ? [style.primaryColor, style.primaryColor] : [style.primaryColor, style.secondaryColor];
+    if (style.colorMode === "solid") return [style.primaryColor, mixHexColors(style.primaryColor, "#ffffff", .5)];
+    return [style.primaryColor, style.secondaryColor];
   }
 
   noteMotion(note, tick, scale, style = this.layerStyle(note.patternId)) {
@@ -412,7 +413,7 @@ export class Visualizer {
       const baseSize = (note.channel === 8 ? 10 : note.channel === 10 ? 7 : 8.2) * scale * noteScale;
       const stepSize = baseSize * zoom * (1 + bounce * 1.05 + (sounding ? .13 : 0));
       let stepColor = main;
-      if (style.colorMode === "gradient") {
+      if (light !== main) {
         stepColor = context.createLinearGradient(x - stepSize, y, x + stepSize, y);
         stepColor.addColorStop(0, main);
         stepColor.addColorStop(1, light);

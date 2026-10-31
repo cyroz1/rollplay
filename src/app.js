@@ -4,7 +4,7 @@ import { createMidi } from "./midi-export.js";
 import { Visualizer, createLayerStyle } from "./visualizer.js";
 import { computePeaks, matchAudioPattern } from "./waveform.js";
 import { autoVideoBitrate, renderMp4 } from "./exporter.js";
-import { createColorRamp } from "./color-utils.js";
+import { createColorRamp, lightenColor } from "./color-utils.js";
 import { findPresetRecord, readPresetRecords, removePresetRecord, upsertPresetRecord, writePresetRecords } from "./preset-store.js";
 
 const element = id => document.getElementById(id);
@@ -464,7 +464,7 @@ function refreshPatterns() {
     selection.onclick = event => updatePatternSelection(pattern.id, event.currentTarget.checked, event.shiftKey);
     const swatch = document.createElement("button");
     swatch.className = "pattern-swatch";
-    swatch.style.background = style.colorMode === "gradient" ? `linear-gradient(90deg, ${style.primaryColor}, ${style.secondaryColor})` : style.primaryColor;
+    swatch.style.background = `linear-gradient(90deg, ${style.primaryColor}, ${style.colorMode === "gradient" ? style.secondaryColor : lightenColor(style.primaryColor)})`;
     swatch.setAttribute("aria-label", `Edit ${pattern.name} style`);
     swatch.title = "Edit layer style";
     swatch.onclick = event => {

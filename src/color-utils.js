@@ -4,6 +4,13 @@ function hexChannels(color) {
   return [0, 2, 4].map(offset => Number.parseInt(value.slice(offset, offset + 2), 16));
 }
 
+export function lightenColor(color, ratio = .5) {
+  if (!/^#[\da-f]{6}$/i.test(color ?? "")) return color;
+  const amount = Math.max(0, Math.min(1, ratio));
+  const channels = hexChannels(color).map(channel => Math.round(channel + (255 - channel) * amount));
+  return `#${channels.map(channel => channel.toString(16).padStart(2, "0")).join("")}`;
+}
+
 export function createColorRamp(startColor, endColor, count) {
   if (!Number.isInteger(count) || count < 1) return [];
   const start = hexChannels(startColor);
