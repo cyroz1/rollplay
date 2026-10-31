@@ -241,6 +241,27 @@ test("layer parallax makes foreground layers travel faster than background layer
   assert.equal(visualizer.layerSpeed(1), 1, "Disabling layer parallax should restore normal travel speed.");
 });
 
+test("edge zoom grows notes as they travel toward the edge of the frame", () => {
+  const project = {
+    tempo: 120, ppq: 96,
+    patterns: [{ id: 1, name: "Front", notes: [] }, { id: 2, name: "Back", notes: [] }],
+    notes: [],
+  };
+  const settings = { framePreset: "portrait", layerOrder: [1, 2], edgeZoom: true, edgeZoomStrength: 100 };
+  const visualizer = new Visualizer({ width: 1080, height: 1920, getContext: () => ({}) }, project, settings);
+  assert.equal(visualizer.edgeZoomFactor(1080, 1080, 1), 1, "Notes should enter at normal size at the right edge.");
+  const frontEdge = visualizer.edgeZoomFactor(0, 1080, 1);
+  const backEdge = visualizer.edgeZoomFactor(0, 1080, 0);
+  assert.ok(frontEdge > 1.8, "Foreground notes should grow substantially by the left edge.");
+  assert.ok(backEdge > 1 && backEdge < frontEdge, "Background layers should grow less than foreground layers.");
+  assert.ok(visualizer.edgeZoomFactor(540, 1080, 1) < frontEdge, "Growth should build as the note travels.");
+  settings.edgeZoomStrength = 0;
+  assert.equal(visualizer.edgeZoomFactor(0, 1080, 1), 1, "Zero edge zoom strength should keep sizes flat.");
+  settings.edgeZoomStrength = 100;
+  settings.edgeZoom = false;
+  assert.equal(visualizer.edgeZoomFactor(0, 1080, 1), 1, "Disabling edge zoom should keep sizes flat.");
+});
+
 test("fullscreen preview contains the canvas without stretching", async () => {
   const styles = await readFile(new URL("../styles.css", import.meta.url), "utf8");
   assert.match(styles, /\.preview-frame:fullscreen\s*\{[^}]*position:\s*fixed;[^}]*inset:\s*0;[^}]*width:\s*100vw;[^}]*height:\s*100vh;[^}]*aspect-ratio:\s*auto;/s);

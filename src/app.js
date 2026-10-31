@@ -55,6 +55,8 @@ const state = {
     shadowOpacity: 28,
     layerParallax: true,
     parallaxStrength: 100,
+    edgeZoom: false,
+    edgeZoomStrength: 100,
     resolution: "1080x1920",
     fps: 60,
     maxSize: "auto",
@@ -752,6 +754,10 @@ function refreshSettingsControls() {
   element("parallax-strength-input").disabled = !state.settings.layerParallax;
   element("parallax-strength-input").value = String(state.settings.parallaxStrength);
   element("parallax-strength-value").value = `${state.settings.parallaxStrength}%`;
+  element("edge-zoom-input").checked = Boolean(state.settings.edgeZoom);
+  element("edge-zoom-strength-input").disabled = !state.settings.edgeZoom;
+  element("edge-zoom-strength-input").value = String(state.settings.edgeZoomStrength);
+  element("edge-zoom-strength-value").value = `${state.settings.edgeZoomStrength}%`;
   element("fps-input").value = String(state.settings.fps);
   element("size-input").value = String(state.settings.maxSize);
   refreshBackgroundControls();
@@ -914,6 +920,16 @@ function bindControls() {
   element("parallax-strength-input").oninput = event => {
     state.settings.parallaxStrength = Number(event.target.value);
     element("parallax-strength-value").value = `${event.target.value}%`;
+    state.visualizer?.draw(currentPosition());
+  };
+  element("edge-zoom-input").onchange = event => {
+    state.settings.edgeZoom = event.target.checked;
+    element("edge-zoom-strength-input").disabled = !event.target.checked;
+    state.visualizer?.draw(currentPosition());
+  };
+  element("edge-zoom-strength-input").oninput = event => {
+    state.settings.edgeZoomStrength = Number(event.target.value);
+    element("edge-zoom-strength-value").value = `${event.target.value}%`;
     state.visualizer?.draw(currentPosition());
   };
   for (const [id, property] of [["note-animation-input", "noteAnimation"], ["played-note-highlight-input", "playedNoteHighlight"], ["particle-animation-input", "particleAnimation"], ["color-mode-input", "colorMode"]]) {
