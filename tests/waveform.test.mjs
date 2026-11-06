@@ -36,6 +36,17 @@ test("computePeaks returns zeros for empty or silent buffers", () => {
   assert.deepEqual(Array.from(computePeaks({ length: 0, numberOfChannels: 1 }, 4)), [0, 0, 0, 0]);
 });
 
+test("computePeaks strides through buffers beyond the per-channel scan cap", () => {
+  const length = 16_777_216; // Twice the 8,388,608-sample cap, so the scan strides by 2.
+  const data = new Float32Array(length).fill(0.5);
+  data[0] = 1;
+  const buffer = { length, numberOfChannels: 1, getChannelData: () => data };
+  const peaks = computePeaks(buffer);
+  assert.equal(peaks.length, 2048);
+  assert.equal(Math.max(...peaks), 1, "A spike on a sampled index should still normalize the peaks.");
+  assert.ok(peaks.every(peak => peak >= 0 && peak <= 1));
+});
+
 test("matchAudioPattern matches filenames against sound names and sample paths", () => {
   const patterns = [
     { id: 1, soundName: "Riser", soundKey: "riser", samplePath: "/samples/riser.wav" },

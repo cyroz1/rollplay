@@ -118,6 +118,32 @@ test("rejects non-Ableton input", async () => {
   await assert.rejects(() => parseAls(new TextEncoder().encode("not an Ableton project")), /valid Ableton Live project/);
 });
 
+test("rejects a clip whose loop expands beyond the note limit", async () => {
+  const xml = `<Ableton><LiveSet><Transport><Tempo><Manual Value="120" /></Tempo></Transport><Tracks>
+    <MidiTrack Id="loop-track"><Name><EffectiveName Value="Loop" /></Name>
+      <DeviceChain><MainSequencer><ClipTimeable><Arranger><Events>
+        <MidiClip Time="0">
+          <CurrentStart Value="0" /><CurrentEnd Value="1000000" />
+          <Loop><LoopStart Value="0" /><LoopEnd Value="0.02" /><LoopOn Value="true" /></Loop>
+          <Notes><KeyTracks><KeyTrack><Notes>
+            <MidiNoteEvent Time="0" Duration="0.015625" Velocity="100" IsEnabled="true" />
+          </Notes><MidiKey Value="60" /></KeyTrack></KeyTracks></Notes>
+        </MidiClip>
+      </Events></Arranger></ClipTimeable></MainSequencer></DeviceChain>
+    </MidiTrack>
+  </Tracks></LiveSet></Ableton>`;
+  await assert.rejects(() => parseAls(xml), /loops a few notes into more than/);
+});
+
+test("rejects a gzip stream that decompresses beyond the XML limit", async () => {
+  const bomb = gzipSync(Buffer.from("x".repeat(140 * 1024 * 1024)));
+  await assert.rejects(() => parseAls(bomb), /decompresses to more than 128 MB of XML/);
+});
+
+test("rejects plain XML beyond the size limit before parsing it", async () => {
+  await assert.rejects(() => parseAls("<".repeat(129 * 1024 * 1024)), /more than 128 MB of XML/);
+});
+
 test("trims notes cut by a clip's left edge instead of clamping them to zero", async () => {
   const xml = `<Ableton MajorVersion="12" MinorVersion="0">
     <LiveSet><Transport><Tempo><Manual Value="120" /></Tempo></Transport><Tracks>

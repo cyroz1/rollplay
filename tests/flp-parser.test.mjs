@@ -168,6 +168,30 @@ test("turns direct FL Studio audio playlist clips into grouped percussion layers
   assert.equal(new Set(audioClips.map(clip => clip.patternId)).size, 1);
 });
 
+test("rejects a project whose clips expand beyond the total note limit", () => {
+  const noteCount = 3000;
+  const clipCount = 700; // 3000 notes x 700 clips would materialize 2.1M notes.
+  const notes = concat(...Array.from({ length: noteCount }, () => makeNote(0, 0)));
+  const playlist = concat(...Array.from({ length: clipCount }, (_, index) => makePlaylistRecord(index * 384, 32)));
+  const events = concat(
+    new Uint8Array([65, 1, 0]),
+    blobEvent(224, notes),
+    blobEvent(199, encoder.encode("25.2.4.4960\0")),
+    blobEvent(233, playlist),
+  );
+  const bytes = new Uint8Array(22 + events.length);
+  const view = new DataView(bytes.buffer);
+  bytes.set(encoder.encode("FLhd"), 0);
+  view.setUint32(4, 6, true);
+  view.setUint16(8, 0, true);
+  view.setUint16(10, 1, true);
+  view.setUint16(12, 96, true);
+  bytes.set(encoder.encode("FLdt"), 14);
+  view.setUint32(18, events.length, true);
+  bytes.set(events, 22);
+  assert.throws(() => parseFlp(bytes), /expands to more than 2,000,000 notes/);
+});
+
 test("parses the supplied FL Studio 26 fixture when available", async context => {
   let fixture;
   try { fixture = await readFile(new URL("../../upload/key.flp", import.meta.url)); }
