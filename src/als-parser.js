@@ -5,6 +5,14 @@ const DEFAULT_PPQ = 960;
 const DEFAULT_TEMPO = 120;
 const MIN_NOTE_DURATION_BEATS = 1 / 64;
 const EPSILON = 1e-7;
+// A real Live Set's XML is a few megabytes, so this ceiling sits far above
+// legitimate projects while stopping a gzip bomb from materializing
+// gigabytes of XML in the tab.
+const MAX_PROJECT_XML_BYTES = 128 * 1024 * 1024;
+// Loop expansion and the project total get the same treatment: a tiny
+// clip must not be able to request tens of millions of note objects.
+const MAX_CLIP_EXPANDED_NOTES = 250_000;
+const MAX_PROJECT_NOTES = 2_000_000;
 
 function bytesFromInput(input) {
   if (typeof input === "string") return new TextEncoder().encode(input);
@@ -18,6 +26,29 @@ function isGzip(bytes) {
   return bytes.length >= 2 && bytes[0] === 0x1f && bytes[1] === 0x8b;
 }
 
+async function readDecompressedWithLimit(stream) {
+  const reader = stream.getReader();
+  const chunks = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > MAX_PROJECT_XML_BYTES) {
+      await reader.cancel().catch(() => {});
+      throw new RangeError(`This Ableton Live project decompresses to more than ${MAX_PROJECT_XML_BYTES / 1048576} MB of XML, which is more than ROLLPLAY can load.`);
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes;
+}
+
 async function decodeProjectXml(input) {
   const bytes = bytesFromInput(input);
   let xmlBytes = bytes;
@@ -27,10 +58,15 @@ async function decodeProjectXml(input) {
     }
     try {
       const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
-      xmlBytes = new Uint8Array(await new Response(stream).arrayBuffer());
+      xmlBytes = await readDecompressedWithLimit(stream);
     } catch (error) {
+      if (error instanceof RangeError) throw error;
       throw new Error(`Unable to decompress this Ableton Live project: ${error.message}`);
     }
+  }
+
+  if (xmlBytes.length > MAX_PROJECT_XML_BYTES) {
+    throw new RangeError(`This Ableton Live project file is more than ${MAX_PROJECT_XML_BYTES / 1048576} MB of XML, which is more than ROLLPLAY can load.`);
   }
 
   const xml = decoder.decode(xmlBytes).replace(/^\uFEFF/, "");
@@ -363,6 +399,9 @@ function parseClipNotes(clip, loopStart, loopLength, length, channel) {
       if (position >= length - EPSILON) continue;
       expanded.push({ ...note, position, length: Math.min(note.length, length - position) });
     }
+    if (expanded.length > MAX_CLIP_EXPANDED_NOTES) {
+      throw new Error(`A clip in this Live Set loops a few notes into more than ${MAX_CLIP_EXPANDED_NOTES.toLocaleString("en-US")} notes, which is more than ROLLPLAY can load.`);
+    }
   }
   return expanded.length ? expanded : cleanNotes;
 }
@@ -578,6 +617,9 @@ export async function parseAls(input) {
     });
   }
 
+  if (notes.length > MAX_PROJECT_NOTES) {
+    throw new Error(`This Live Set expands to more than ${MAX_PROJECT_NOTES.toLocaleString("en-US")} notes, which is more than ROLLPLAY can load.`);
+  }
   notes.sort((left, right) => left.at - right.at || left.channel - right.channel || left.key - right.key);
   const totalTicks = Math.max(DEFAULT_PPQ * 4, ...clips.map(clip => clip.at + clip.length));
   return {

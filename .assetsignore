@@ -6,6 +6,8 @@ node_modules/
 .git/
 tests/
 server.mjs
+worker.js
+_headers
 README.md
 package.json
 package-lock.json
@@ -15,6 +17,11 @@ wrangler.json
 wrangler.jsonc
 .gitignore
 .assetsignore
+
+# Secrets and keys (never publish)
+.env*
+*.pem
+*.key
 
 # Local-only media and artifacts
 *.flp

@@ -7,6 +7,35 @@ import { autoVideoBitrate, renderMp4 } from "./exporter.js";
 import { createColorRamp, lightenColor } from "./color-utils.js";
 import { findPresetRecord, readPresetRecords, removePresetRecord, upsertPresetRecord, writePresetRecords } from "./preset-store.js";
 
+// Generous ceilings for user-supplied files, checked before the browser
+// spends memory decoding them. Each sits far beyond anything a
+// song-length project or render needs, so only crafted or accidental
+// outliers are rejected, with a message naming the limit.
+const MAX_PROJECT_FILE_BYTES = 256 * 1024 * 1024;
+const MAX_MEDIA_FILE_BYTES = 512 * 1024 * 1024;
+const MAX_AUDIO_DURATION_SECONDS = 2 * 60 * 60;
+const MAX_AUDIO_CHANNELS = 8;
+const MAX_SAMPLE_FILES = 64;
+const MAX_SAMPLE_TOTAL_BYTES = 1024 * 1024 * 1024;
+const MAX_IMAGE_PIXELS = 64 * 1024 * 1024;
+
+const megabytes = bytes => Math.round(bytes / (1024 * 1024));
+
+function assertFileWithinLimit(file, limitBytes) {
+  if (file.size > limitBytes) {
+    throw new Error(`the file is ${megabytes(file.size)} MB, over the ${megabytes(limitBytes)} MB limit`);
+  }
+}
+
+function assertDecodedAudioWithinLimits(buffer) {
+  if (buffer.duration > MAX_AUDIO_DURATION_SECONDS) {
+    throw new Error(`the decoded audio runs ${Math.round(buffer.duration / 60)} minutes, over the ${MAX_AUDIO_DURATION_SECONDS / 3600}-hour limit`);
+  }
+  if (buffer.numberOfChannels > MAX_AUDIO_CHANNELS) {
+    throw new Error(`the file has ${buffer.numberOfChannels} channels, over the ${MAX_AUDIO_CHANNELS}-channel limit`);
+  }
+}
+
 const element = id => document.getElementById(id);
 const state = {
   project: null,
@@ -261,7 +290,14 @@ async function loadBackgroundImage(file) {
   if (!file) return;
   try {
     if (typeof createImageBitmap !== "function") throw new Error("Image backgrounds require a browser with image decoding support.");
+    assertFileWithinLimit(file, MAX_MEDIA_FILE_BYTES);
     const bitmap = await createImageBitmap(file);
+    const pixels = bitmap.width * bitmap.height;
+    if (pixels > MAX_IMAGE_PIXELS) {
+      const dimensions = `${bitmap.width}×${bitmap.height}`;
+      bitmap.close?.();
+      throw new Error(`the image is ${dimensions} (${Math.round(pixels / 1_000_000)} megapixels), over the ${MAX_IMAGE_PIXELS / 1_000_000}-megapixel limit`);
+    }
     state.settings.backgroundImage?.close?.();
     state.settings.backgroundImage = bitmap;
     state.settings.backgroundImageName = file.name;
@@ -572,6 +608,10 @@ function movePatternLayer(patternId, targetIndex) {
 
 async function loadProject(file) {
   if (!file) return;
+  if (file.size > MAX_PROJECT_FILE_BYTES) {
+    notify(`Project files are limited to ${megabytes(MAX_PROJECT_FILE_BYTES)} MB; this one is ${megabytes(file.size)} MB.`, 5000);
+    return;
+  }
   const isAbleton = /\.als$/i.test(file.name);
   const formatName = isAbleton ? "Ableton Live" : "FL Studio";
   try {
@@ -612,12 +652,15 @@ async function loadProject(file) {
 async function loadAudio(file) {
   if (!file) return;
   try {
+    assertFileWithinLimit(file, MAX_MEDIA_FILE_BYTES);
     if (state.audio) URL.revokeObjectURL(state.audio.src);
     state.audio = new Audio(URL.createObjectURL(file));
     state.audio.preload = "auto";
     state.audio.onended = () => setPlaying(false);
     state.audioContext ||= new AudioContext();
-    state.audioBuffer = await state.audioContext.decodeAudioData(await file.arrayBuffer());
+    const buffer = await state.audioContext.decodeAudioData(await file.arrayBuffer());
+    assertDecodedAudioWithinLimits(buffer);
+    state.audioBuffer = buffer;
     element("audio-label").textContent = file.name;
     notify(`Added audio · ${formatTime(state.audioBuffer.duration)}`);
   } catch (error) {
@@ -634,12 +677,15 @@ function openSamplePicker(patternId) {
 }
 
 async function decodeSampleFile(file) {
+  assertFileWithinLimit(file, MAX_MEDIA_FILE_BYTES);
   try {
     state.audioContext ||= new AudioContext();
   } catch {
     throw new Error("This browser cannot decode audio files.");
   }
-  return state.audioContext.decodeAudioData(await file.arrayBuffer());
+  const buffer = await state.audioContext.decodeAudioData(await file.arrayBuffer());
+  assertDecodedAudioWithinLimits(buffer);
+  return buffer;
 }
 
 /**
@@ -649,6 +695,15 @@ async function decodeSampleFile(file) {
  */
 async function attachSampleFiles(patternId, files) {
   if (!state.project || !files.length) return;
+  if (files.length > MAX_SAMPLE_FILES) {
+    notify(`Attach at most ${MAX_SAMPLE_FILES} audio files at once.`, 5000);
+    return;
+  }
+  const totalBytes = files.reduce((sum, file) => sum + file.size, 0);
+  if (totalBytes > MAX_SAMPLE_TOTAL_BYTES) {
+    notify(`Those files total ${megabytes(totalBytes)} MB; the limit per batch is ${megabytes(MAX_SAMPLE_TOTAL_BYTES)} MB.`, 5000);
+    return;
+  }
   const audioPatterns = state.project.patterns.filter(pattern => pattern.isAudio);
   const fallback = audioPatterns.find(pattern => String(pattern.id) === String(patternId)) || null;
   let attached = 0;

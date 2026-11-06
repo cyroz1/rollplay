@@ -3,6 +3,16 @@ const decoder16 = new TextDecoder("utf-16le");
 const decoder8 = new TextDecoder();
 const NOTE_RECORD_SIZES = [24, 20];
 const PLAYLIST_RECORD_SIZES = [88, 80, 60, 56, 36, 32, 20];
+// Playlist clips multiply pattern notes, so a small file can request an
+// outsized note list. Cap the materialized total far above real projects
+// (the FL Studio 26 regression fixture expands to about 6,550 notes).
+const MAX_PROJECT_NOTES = 2_000_000;
+
+function assertNoteBudget(count) {
+  if (count > MAX_PROJECT_NOTES) {
+    throw new Error(`This FL Studio project expands to more than ${MAX_PROJECT_NOTES.toLocaleString("en-US")} notes, which is more than ROLLPLAY can load.`);
+  }
+}
 
 function readString(bytes, utf16 = true) {
   return (utf16 ? decoder16 : decoder8).decode(bytes).replace(/\0+$/g, "");
@@ -354,6 +364,7 @@ export function parseFlp(input) {
         track: clip.track,
         patternId: pattern.id,
       });
+      assertNoteBudget(notes.length);
       continue;
     }
     for (const note of pattern.notes) {
@@ -367,6 +378,7 @@ export function parseFlp(input) {
         track: clip.track,
         patternId: pattern.id,
       });
+      assertNoteBudget(notes.length);
     }
   }
   notes.sort((left, right) => left.at - right.at || left.channel - right.channel || left.key - right.key);

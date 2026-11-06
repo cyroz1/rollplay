@@ -1,4 +1,12 @@
 /**
+ * Upper bound on samples scanned per channel. Past it the scan strides
+ * through the buffer, so an oversized decoded buffer cannot keep the tab
+ * busy visiting every sample; buckets still see evenly spread samples,
+ * which keeps the waveform shape representative.
+ */
+const MAX_SCANNED_SAMPLES_PER_CHANNEL = 8_388_608;
+
+/**
  * Compute normalized peak amplitudes for drawing audio waveforms.
  * The peaks are computed over the mixed-down absolute amplitude of every
  * channel and normalized so the loudest bucket reaches 1, which keeps
@@ -13,6 +21,7 @@ export function computePeaks(audioBuffer, bucketCount = 2048) {
 
   const data = [];
   for (let channel = 0; channel < channels; channel++) data.push(audioBuffer.getChannelData(channel));
+  const stride = Math.max(1, Math.floor(length / MAX_SCANNED_SAMPLES_PER_CHANNEL));
   const perBucket = length / count;
   let loudest = 0;
   for (let index = 0; index < count; index++) {
@@ -21,7 +30,7 @@ export function computePeaks(audioBuffer, bucketCount = 2048) {
     let peak = 0;
     for (let channel = 0; channel < channels; channel++) {
       const samples = data[channel];
-      for (let sample = start; sample < end; sample++) {
+      for (let sample = start; sample < end; sample += stride) {
         const amplitude = Math.abs(samples[sample]);
         if (amplitude > peak) peak = amplitude;
       }
