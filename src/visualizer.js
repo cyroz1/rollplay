@@ -245,6 +245,16 @@ export class Visualizer {
       const releaseProgress = Math.min(1, (hitAge - noteDuration) / releaseDuration);
       return { size: 0, offset: distance * (1 - releaseProgress) };
     }
+    if (style.noteAnimation === "bounce") {
+      const noteDuration = Math.max(1, Number(note.length) || 1);
+      const settleDuration = Math.min(noteDuration, this.project.ppq * .22);
+      const distance = 22 * scale;
+      if (hitAge > noteDuration) return { size: 0, offset: 0 };
+      const progress = Math.min(1, hitAge / settleDuration);
+      if (progress >= 1) return { size: 0, offset: 0 };
+      const eased = 1 + Math.pow(2, -10 * progress) * Math.sin((progress * 10 - .75) * (2 * Math.PI / 3));
+      return { size: 0, offset: distance * (1 - eased) };
+    }
     if (style.noteAnimation === "wave") {
       return { size: impact * .2, offset: Math.sin(hitAge / this.project.ppq * Math.PI * 7.4) * impact * 18 * scale };
     }
