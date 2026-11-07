@@ -8,6 +8,7 @@ export const GLOBAL_PRESET_KEYS = Object.freeze([
   "backgroundGradientAngle",
   "backgroundImageFit",
   "backgroundGridColor",
+  "backgroundPaletteColors",
   "backgroundPulseLayer",
   "noteSize",
   "barsVisible",
@@ -52,7 +53,7 @@ export function snapshotGlobalSettings(settings = {}) {
   return Object.fromEntries(
     GLOBAL_PRESET_KEYS
       .filter(key => settings[key] !== undefined)
-      .map(key => [key, settings[key]]),
+      .map(key => [key, Array.isArray(settings[key]) ? [...settings[key]] : settings[key]]),
   );
 }
 

@@ -317,7 +317,10 @@ export class Visualizer {
     const { canvas, context } = this;
     context.fillStyle = "#0d0d12";
     context.fillRect(0, 0, canvas.width, canvas.height);
-    const colors = [...this.patternColors.values()].map(pair => pair[0]);
+    const custom = Array.isArray(this.settings.backgroundPaletteColors)
+      ? this.settings.backgroundPaletteColors.filter(color => /^#[\da-f]{6}$/i.test(color))
+      : [];
+    const colors = custom.length ? custom : [...this.patternColors.values()].map(pair => pair[0]);
     const palette = colors.length ? colors : PALETTE.map(pair => pair[0]);
     const count = Math.min(6, Math.max(3, palette.length));
     const radius = Math.hypot(canvas.width, canvas.height) * .45;
@@ -352,15 +355,10 @@ export class Visualizer {
     for (let y = rowGap; y < height; y += rowGap) { context.moveTo(0, y); context.lineTo(width, y); }
     context.stroke();
     const barTicks = project.ppq * 4;
-    const drawnSpeeds = new Set();
-    for (let index = count - 1; index >= 0; index--) {
-      const speed = this.layerSpeedForIndex(index, count);
-      const speedKey = Math.round(speed * 1000);
-      if (drawnSpeeds.has(speedKey)) continue;
-      drawnSpeeds.add(speedKey);
-      const spacing = barTicks * pixelsPerTick * speed;
-      if (spacing < 8) continue;
-      const depth = this.layerDepthForIndex(index, count);
+    const speed = this.layerSpeedForIndex(count - 1, count);
+    const spacing = barTicks * pixelsPerTick * speed;
+    if (spacing >= 8) {
+      const depth = this.layerDepthForIndex(count - 1, count);
       context.globalAlpha = .1 + depth * .22;
       const phase = (tick * pixelsPerTick * speed) % spacing;
       let startX = (hitX - phase) % spacing;

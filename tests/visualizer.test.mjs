@@ -284,7 +284,7 @@ test("background pulse follows the linked layer's notes", () => {
   assert.equal(visualizer.backgroundPulse(0), 0, "No linked layer should mean no pulse.");
 });
 
-test("faded grid strokes parallax bar lines per layer speed", () => {
+test("faded grid strokes a single bar set at the backmost layer speed", () => {
   const calls = [];
   const context = {
     save() {}, restore() {}, beginPath() { calls.push("beginPath"); },
@@ -298,7 +298,37 @@ test("faded grid strokes parallax bar lines per layer speed", () => {
   const settings = { layerOrder: [1, 2], layerParallax: true, parallaxStrength: 100, backgroundGridColor: "#64748b" };
   const visualizer = new Visualizer({ width: 1080, height: 1920, getContext: () => context }, project, settings);
   visualizer.drawGrid(1080, 1920, 0, 200, 2);
-  assert.ok(calls.filter(call => call === "stroke").length >= 3, "Grid should stroke the horizontal lines plus one vertical set per distinct layer speed.");
+  assert.equal(calls.filter(call => call === "stroke").length, 2, "Grid should stroke the horizontal lines plus exactly one vertical bar set.");
+  assert.equal(context.globalAlpha, .1, "The single bar set should use the backmost layer's depth for its alpha.");
+});
+
+test("palette background uses custom colors and falls back when they are invalid", () => {
+  const stops = [];
+  const context = {
+    save() {}, restore() {}, fillRect() {},
+    createRadialGradient() { return { addColorStop(_offset, color) { stops.push(color); } }; },
+  };
+  const project = {
+    tempo: 120, ppq: 96,
+    patterns: [{ id: 1, name: "Lead", notes: [] }, { id: 2, name: "Pad", notes: [] }],
+    notes: [],
+  };
+  const settings = { backgroundPaletteColors: ["#112233", "#445566"] };
+  const visualizer = new Visualizer({ width: 1080, height: 1920, getContext: () => context }, project, settings);
+  visualizer.drawPaletteBackground(0, 0);
+  assert.equal(stops[0], "#11223357", "Custom palette colors should drive the animated blobs.");
+  assert.equal(stops[2], "#44556657", "Blobs should cycle through the custom palette colors.");
+  assert.ok(stops.every(color => !color.startsWith("#ff78ae")), "Layer colors should not appear when a custom palette is set.");
+
+  stops.length = 0;
+  settings.backgroundPaletteColors = ["not-a-color", "#445566"];
+  visualizer.drawPaletteBackground(0, 0);
+  assert.equal(stops[0], "#44556657", "Invalid palette entries should be skipped.");
+
+  stops.length = 0;
+  settings.backgroundPaletteColors = ["not-a-color"];
+  visualizer.drawPaletteBackground(0, 0);
+  assert.equal(stops[0], "#ff78ae57", "An all-invalid palette should fall back to the layer colors.");
 });
 
 test("fullscreen preview contains the canvas without stretching", async () => {

@@ -61,6 +61,7 @@ const state = {
     backgroundImageName: "",
     backgroundImageFit: "cover",
     backgroundGridColor: "#64748b",
+    backgroundPaletteColors: [],
     backgroundPulseLayer: null,
     noteSize: 145,
     barsVisible: 3,
@@ -142,8 +143,10 @@ function refreshBackgroundControls() {
   element("background-gradient-controls").classList.toggle("hidden", mode !== "gradient");
   element("background-image-controls").classList.toggle("hidden", mode !== "image");
   element("background-grid-controls").classList.toggle("hidden", mode !== "grid");
+  element("background-palette-controls").classList.toggle("hidden", mode !== "palette");
   element("background-pulse-controls").classList.toggle("hidden", mode === "image");
   element("background-grid-color").value = state.settings.backgroundGridColor;
+  refreshBackgroundPaletteControls();
   const pulseSelect = element("background-pulse-layer-input");
   pulseSelect.replaceChildren();
   const offOption = document.createElement("option");
@@ -164,6 +167,43 @@ function refreshBackgroundControls() {
   element("background-gradient-angle-value").value = `${state.settings.backgroundGradientAngle}°`;
   element("background-image-fit-input").value = state.settings.backgroundImageFit;
   element("background-image-name").textContent = state.settings.backgroundImageName || "No image selected";
+}
+
+function refreshBackgroundPaletteControls() {
+  const list = element("background-palette-color-list");
+  list.replaceChildren();
+  const colors = Array.isArray(state.settings.backgroundPaletteColors) ? state.settings.backgroundPaletteColors : [];
+  element("background-palette-empty").classList.toggle("hidden", colors.length > 0);
+  element("background-palette-add").disabled = colors.length >= 6;
+  colors.forEach((color, index) => {
+    const row = document.createElement("div");
+    row.className = "control-row";
+    const label = document.createElement("span");
+    label.textContent = `Color ${index + 1}`;
+    const actions = document.createElement("span");
+    actions.className = "background-palette-actions";
+    const picker = document.createElement("input");
+    picker.type = "color";
+    picker.value = /^#[\da-f]{6}$/i.test(color) ? color : "#a78bef";
+    picker.setAttribute("aria-label", `Palette color ${index + 1}`);
+    picker.oninput = event => {
+      state.settings.backgroundPaletteColors[index] = event.target.value;
+      state.visualizer?.draw(currentPosition());
+    };
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "background-palette-remove";
+    remove.textContent = "Remove";
+    remove.setAttribute("aria-label", `Remove palette color ${index + 1}`);
+    remove.onclick = () => {
+      state.settings.backgroundPaletteColors.splice(index, 1);
+      refreshBackgroundPaletteControls();
+      state.visualizer?.draw(currentPosition());
+    };
+    actions.append(picker, remove);
+    row.append(label, actions);
+    list.appendChild(row);
+  });
 }
 
 function refreshPlayheadControls() {
@@ -900,6 +940,13 @@ function bindControls() {
     state.visualizer?.draw(currentPosition());
   };
   element("background-grid-color").oninput = event => { state.settings.backgroundGridColor = event.target.value; state.visualizer?.draw(currentPosition()); };
+  element("background-palette-add").onclick = () => {
+    if (!Array.isArray(state.settings.backgroundPaletteColors)) state.settings.backgroundPaletteColors = [];
+    if (state.settings.backgroundPaletteColors.length >= 6) return;
+    state.settings.backgroundPaletteColors.push("#a78bef");
+    refreshBackgroundPaletteControls();
+    state.visualizer?.draw(currentPosition());
+  };
   element("background-pulse-layer-input").onchange = event => {
     state.settings.backgroundPulseLayer = event.target.value === "" ? null : event.target.value;
     state.visualizer?.draw(currentPosition());

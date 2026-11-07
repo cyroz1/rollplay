@@ -130,3 +130,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
   .site-footer{align-items:flex-start;flex-direction:column;padding:22px 18px 32px}
   .noscript-message{padding:18px}
 }
+.background-palette-actions{display:flex;align-items:center;gap:8px}
+.background-palette-remove{height:35px;border:1px solid var(--border);border-radius:4px;padding:0 10px;background:none;color:#d8d3e8;font:600 11px inherit;cursor:pointer}
+.background-palette-remove:hover{border-color:var(--accent)}
+.background-palette-empty{display:block;margin:10px 0 2px;color:var(--muted);font-size:10px;line-height:1.4}

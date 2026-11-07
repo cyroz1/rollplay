@@ -48,3 +48,12 @@ test("global customization presets round-trip without project-specific state", (
   assert.deepEqual(readPresetRecords(storage), updated.records);
   assert.equal(removePresetRecord(updated.records, "studio warm").length, 0);
 });
+
+test("global customization presets snapshot palette color arrays by value", () => {
+  const settings = { backgroundPaletteColors: ["#112233", "#445566"] };
+  const { record } = upsertPresetRecord([], "Palette Pop", settings, 100);
+  assert.deepEqual(record.settings.backgroundPaletteColors, ["#112233", "#445566"]);
+  settings.backgroundPaletteColors.push("#778899");
+  assert.deepEqual(record.settings.backgroundPaletteColors, ["#112233", "#445566"], "Preset records should not change when the live palette is edited afterwards.");
+  assert.deepEqual(snapshotGlobalSettings({ backgroundPaletteColors: [] }), { backgroundPaletteColors: [] });
+});
