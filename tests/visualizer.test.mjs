@@ -325,6 +325,67 @@ test("background pulse follows the linked layer's notes", () => {
   assert.equal(visualizer.backgroundPulse(0), 0, "No linked layer should mean no pulse.");
 });
 
+test("background pulse can follow multiple layers at once", () => {
+  const notes = [
+    { at: 0, length: 96, key: 60, channel: 0, velocity: 100, patternId: 1 },
+    { at: 192, length: 96, key: 62, channel: 0, velocity: 100, patternId: 2 },
+  ];
+  const project = {
+    tempo: 120, ppq: 96,
+    patterns: [{ id: 1, name: "Lead", notes: [] }, { id: 2, name: "Pad", notes: [] }],
+    notes,
+  };
+  const settings = { backgroundPulseLayers: ["1", "2"] };
+  const visualizer = new Visualizer({ width: 1080, height: 1920, getContext: () => ({}) }, project, settings);
+  assert.equal(visualizer.backgroundPulse(0), 1, "A hit on the first linked layer should pulse.");
+  assert.equal(visualizer.backgroundPulse(192), 1, "A hit on the second linked layer should pulse.");
+
+  settings.backgroundPulseLayers = [2];
+  assert.equal(visualizer.backgroundPulse(0), 0, "An unlinked layer's hit should not pulse.");
+
+  settings.backgroundPulseLayers = [1, 2];
+  settings.enabledPatterns = new Set([2]);
+  assert.equal(visualizer.backgroundPulse(0), 0, "A muted linked layer should not pulse.");
+  assert.equal(visualizer.backgroundPulse(192), 1, "An enabled linked layer should still pulse.");
+
+  delete settings.enabledPatterns;
+  settings.backgroundPulseLayers = [1];
+  settings.backgroundPulseLayer = 2;
+  assert.ok(visualizer.backgroundPulse(192) < .05, "The layer list should win over the legacy single layer.");
+  assert.equal(visualizer.backgroundPulse(0), 1, "The legacy layer should be ignored once a list is set.");
+});
+
+test("background pulse darkens on light solid backgrounds so it stays visible", () => {
+  const fills = [];
+  const context = {
+    globalAlpha: 1, fillStyle: "",
+    save() {}, restore() {}, setTransform() {},
+    fillRect() { fills.push({ fillStyle: this.fillStyle, alpha: this.globalAlpha }); },
+    createLinearGradient() { return { addColorStop() {} }; },
+  };
+  const note = { at: 0, length: 96, key: 60, channel: 0, velocity: 100, patternId: 1 };
+  const project = { tempo: 120, ppq: 96, patterns: [{ id: 1, name: "Lead", notes: [note] }], notes: [note] };
+  const settings = {
+    backgroundMode: "solid",
+    background: "#ffffff",
+    backgroundPulseLayers: [1],
+    enabledPatterns: new Set([1]),
+  };
+  const visualizer = new Visualizer({ width: 1000, height: 1000, getContext: () => context }, project, settings);
+  assert.equal(visualizer.pulseOverlayColor(), "#000000", "A white background should get a dark pulse overlay.");
+
+  visualizer.drawBackground(0, 10);
+  assert.equal(fills.length, 2, "The solid background and its pulse should both be painted.");
+  assert.equal(fills[1].fillStyle, "#000000", "The pulse on a white background should darken, not whiten.");
+  assert.ok(fills[1].alpha > 0, "The pulse overlay should be visible on a solid background.");
+
+  settings.background = "#101418";
+  assert.equal(visualizer.pulseOverlayColor(), "#ffffff", "A dark background should keep the white pulse overlay.");
+  settings.backgroundMode = "gradient";
+  settings.background = "#ffffff";
+  assert.equal(visualizer.pulseOverlayColor(), "#ffffff", "Gradient backgrounds should keep the white pulse overlay.");
+});
+
 test("faded grid strokes a single bar set at the backmost layer speed", () => {
   const calls = [];
   const context = {

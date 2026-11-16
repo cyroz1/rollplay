@@ -63,6 +63,7 @@ const state = {
     backgroundGridColor: "#64748b",
     backgroundPaletteColors: [],
     backgroundPulseLayer: null,
+    backgroundPulseLayers: [],
     noteSize: 145,
     barsVisible: 3,
     melodyVerticalZoom: 100,
@@ -166,19 +167,40 @@ function refreshBackgroundControls() {
   element("background-pulse-controls").classList.toggle("hidden", mode === "image");
   element("background-grid-color").value = state.settings.backgroundGridColor;
   refreshBackgroundPaletteControls();
-  const pulseSelect = element("background-pulse-layer-input");
-  pulseSelect.replaceChildren();
-  const offOption = document.createElement("option");
-  offOption.value = "";
-  offOption.textContent = "Off";
-  pulseSelect.appendChild(offOption);
+  const pulseList = element("background-pulse-layer-list");
+  pulseList.replaceChildren();
+  const linkedPulseLayers = new Set(
+    (Array.isArray(state.settings.backgroundPulseLayers) && state.settings.backgroundPulseLayers.length
+      ? state.settings.backgroundPulseLayers
+      : [state.settings.backgroundPulseLayer]
+    ).filter(id => id !== null && id !== undefined && id !== "").map(String),
+  );
   for (const pattern of state.project?.patterns ?? []) {
-    const option = document.createElement("option");
-    option.value = String(pattern.id);
-    option.textContent = pattern.name || `Layer ${pattern.id}`;
-    pulseSelect.appendChild(option);
+    const row = document.createElement("label");
+    row.className = "control-row";
+    const name = document.createElement("span");
+    name.textContent = pattern.name || `Layer ${pattern.id}`;
+    const checkbox = document.createElement("input");
+    checkbox.className = "switch";
+    checkbox.type = "checkbox";
+    checkbox.checked = linkedPulseLayers.has(String(pattern.id));
+    checkbox.setAttribute("aria-label", `Brightness pulse on ${name.textContent}`);
+    checkbox.onchange = () => {
+      const selected = new Set(
+        (Array.isArray(state.settings.backgroundPulseLayers) ? state.settings.backgroundPulseLayers : []).map(String),
+      );
+      if (!selected.size && state.settings.backgroundPulseLayer !== null && state.settings.backgroundPulseLayer !== undefined && state.settings.backgroundPulseLayer !== "") {
+        selected.add(String(state.settings.backgroundPulseLayer));
+      }
+      if (checkbox.checked) selected.add(String(pattern.id));
+      else selected.delete(String(pattern.id));
+      state.settings.backgroundPulseLayers = [...selected];
+      state.settings.backgroundPulseLayer = null;
+      state.visualizer?.draw(currentPosition());
+    };
+    row.append(name, checkbox);
+    pulseList.appendChild(row);
   }
-  pulseSelect.value = state.settings.backgroundPulseLayer == null ? "" : String(state.settings.backgroundPulseLayer);
   element("background-input").value = state.settings.background;
   element("background-gradient-start").value = state.settings.backgroundGradientStart;
   element("background-gradient-end").value = state.settings.backgroundGradientEnd;
@@ -996,10 +1018,6 @@ function bindControls() {
     if (state.settings.backgroundPaletteColors.length >= 6) return;
     state.settings.backgroundPaletteColors.push("#a78bef");
     refreshBackgroundPaletteControls();
-    state.visualizer?.draw(currentPosition());
-  };
-  element("background-pulse-layer-input").onchange = event => {
-    state.settings.backgroundPulseLayer = event.target.value === "" ? null : event.target.value;
     state.visualizer?.draw(currentPosition());
   };
   element("frame-preset-input").onchange = event => {

@@ -297,10 +297,24 @@ export class Visualizer {
   }
 
   backgroundPulse(tick) {
-    const linked = this.settings.backgroundPulseLayer;
-    if (linked === null || linked === undefined || linked === "") return 0;
+    const linked = new Set();
+    if (Array.isArray(this.settings.backgroundPulseLayers)) {
+      for (const id of this.settings.backgroundPulseLayers) {
+        if (id !== null && id !== undefined && id !== "") linked.add(String(id));
+      }
+    }
+    if (!linked.size) {
+      const legacy = this.settings.backgroundPulseLayer;
+      if (legacy !== null && legacy !== undefined && legacy !== "") linked.add(String(legacy));
+    }
+    if (!linked.size) return 0;
     const enabled = this.settings.enabledPatterns;
-    if (enabled && ![...enabled].some(id => String(id) === String(linked))) return 0;
+    if (enabled) {
+      for (const id of [...linked]) {
+        if (![...enabled].some(candidate => String(candidate) === id)) linked.delete(id);
+      }
+    }
+    if (!linked.size) return 0;
     const notes = this.project.notes;
     if (!notes?.length) return 0;
     let pulse = 0;
@@ -308,7 +322,7 @@ export class Visualizer {
     for (let index = start; index < notes.length; index++) {
       const note = notes[index];
       if (note.at > tick) break;
-      if (String(note.patternId) !== String(linked)) continue;
+      if (!linked.has(String(note.patternId))) continue;
       if (tick < note.at + note.length) pulse = Math.max(pulse, .35);
       const hit = Math.exp(-(tick - note.at) / (this.project.ppq * .45));
       if (hit > pulse) pulse = hit;
@@ -316,12 +330,27 @@ export class Visualizer {
     return pulse;
   }
 
+  pulseOverlayColor() {
+    // The pulse brightens with a white overlay, which is invisible on a
+    // light solid color. Solid and grid backgrounds both sit on the solid
+    // color, so pulse dark instead when that color is light.
+    const mode = this.settings.backgroundMode ?? "solid";
+    if (mode !== "solid" && mode !== "grid") return "#ffffff";
+    const background = /^#[\da-f]{6}$/i.test(this.settings.background) ? this.settings.background : "#ffffff";
+    const luminance = (
+      parseInt(background.slice(1, 3), 16) * .2126
+      + parseInt(background.slice(3, 5), 16) * .7152
+      + parseInt(background.slice(5, 7), 16) * .0722
+    ) / 255;
+    return luminance > .6 ? "#000000" : "#ffffff";
+  }
+
   applyBackgroundPulse(pulse) {
     if (!(pulse > .003)) return;
     const { canvas, context } = this;
     context.save();
     context.globalAlpha = Math.min(.38, pulse * .38);
-    context.fillStyle = "#ffffff";
+    context.fillStyle = this.pulseOverlayColor();
     context.fillRect(0, 0, canvas.width, canvas.height);
     context.restore();
   }
@@ -666,7 +695,7 @@ export class Visualizer {
       if (pulse > .003) {
         context.save();
         context.globalAlpha = Math.min(.38, pulse * .38);
-        context.fillStyle = "#ffffff";
+        context.fillStyle = this.pulseOverlayColor();
         context.fillRect(0, 0, width, height);
         context.restore();
       }
