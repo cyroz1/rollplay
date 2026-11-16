@@ -606,3 +606,45 @@ test("audio layers with attached waveforms render bars instead of note shapes", 
   hitVisualizer.drawHit(note, 0, 1080, 1920, 540, layerStyles);
   assert.equal(hitCalls.length, 0, "Waveform notes should not draw hit pulses.");
 });
+
+test("muted patterns draw no notes, hits, step lanes, or background pulse", () => {
+  const gradient = { addColorStop() {} };
+  const context = new Proxy({}, {
+    get(target, property) {
+      if (property === "createLinearGradient" || property === "createRadialGradient") return () => gradient;
+      return target[property] ?? (() => {});
+    },
+    set(target, property, value) { target[property] = value; return true; },
+  });
+  const canvas = { width: 1080, height: 1920, getContext: () => context };
+  const lead = { at: 0, length: 96, key: 60, channel: 0, velocity: 127, patternId: 1 };
+  const pad = { at: 0, length: 96, key: 72, channel: 0, velocity: 127, patternId: 2 };
+  const project = {
+    tempo: 120, ppq: 96, duration: 2,
+    patterns: [{ id: 1, name: "Lead", notes: [lead] }, { id: 2, name: "Pad", notes: [pad] }],
+    notes: [lead, pad],
+  };
+  const settings = {
+    background: "#ffffff", noteSize: 100, playhead: false, effects: true, percussion: true,
+    enabledPatterns: new Set([1]),
+    trackModes: new Map([[1, "step"], [2, "step"]]),
+    layerOrder: [1, 2],
+  };
+  const visualizer = new Visualizer(canvas, project, settings);
+  const drawn = [];
+  const hits = [];
+  const drawNote = visualizer.drawNote.bind(visualizer);
+  const drawHit = visualizer.drawHit.bind(visualizer);
+  visualizer.drawNote = (note, ...rest) => { drawn.push(note.patternId); return drawNote(note, ...rest); };
+  visualizer.drawHit = (note, ...rest) => { hits.push(note.patternId); return drawHit(note, ...rest); };
+  visualizer.draw(0);
+  visualizer.draw(.25);
+  assert.ok(drawn.length > 0 && drawn.every(id => id === 1), "Only the enabled pattern's notes should draw.");
+  assert.ok(hits.every(id => id === 1), "Only the enabled pattern's notes should draw hit effects.");
+  assert.deepEqual([...visualizer.stepLanes.keys()], [1], "A muted step pattern should not reserve a percussion lane.");
+
+  settings.backgroundPulseLayer = 2;
+  assert.equal(visualizer.backgroundPulse(10), 0, "A muted pattern must not pulse the background.");
+  settings.backgroundPulseLayer = 1;
+  assert.ok(visualizer.backgroundPulse(10) > 0, "An enabled pattern should pulse the background.");
+});

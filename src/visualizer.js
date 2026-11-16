@@ -129,6 +129,7 @@ export class Visualizer {
     this.stepLanes.clear();
     if (!this.settings.trackModes) return;
     for (const pattern of this.project.patterns) {
+      if (this.settings.enabledPatterns && !this.settings.enabledPatterns.has(pattern.id)) continue;
       if (this.settings.trackModes.get(pattern.id) === "step") this.stepLanes.set(pattern.id, this.stepLanes.size);
     }
   }
@@ -298,6 +299,8 @@ export class Visualizer {
   backgroundPulse(tick) {
     const linked = this.settings.backgroundPulseLayer;
     if (linked === null || linked === undefined || linked === "") return 0;
+    const enabled = this.settings.enabledPatterns;
+    if (enabled && ![...enabled].some(id => String(id) === String(linked))) return 0;
     const notes = this.project.notes;
     if (!notes?.length) return 0;
     let pulse = 0;
@@ -330,7 +333,11 @@ export class Visualizer {
     const custom = Array.isArray(this.settings.backgroundPaletteColors)
       ? this.settings.backgroundPaletteColors.filter(color => /^#[\da-f]{6}$/i.test(color))
       : [];
-    const colors = custom.length ? custom : [...this.patternColors.values()].map(pair => pair[0]);
+    const enabled = this.settings.enabledPatterns;
+    const patternColors = enabled
+      ? [...this.patternColors.entries()].filter(([patternId]) => enabled.has(patternId)).map(([, pair]) => pair[0])
+      : [...this.patternColors.values()].map(pair => pair[0]);
+    const colors = custom.length ? custom : patternColors;
     const palette = colors.length ? colors : PALETTE.map(pair => pair[0]);
     const count = Math.min(6, Math.max(3, palette.length));
     const radius = Math.hypot(canvas.width, canvas.height) * .45;
