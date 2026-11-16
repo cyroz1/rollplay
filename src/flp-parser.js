@@ -141,6 +141,10 @@ function decodePlaylistCandidate(payload, stride, patterns, audioChannels) {
       at,
       length: view.getUint32(position + 8, true),
       track: Math.max(0, 499 - view.getUint16(position + 12, true)),
+      // FL stores per-clip mute in the high byte of the item flags field
+      // (byte 19 of the record, bit 0x20). A clip muted in the playlist
+      // makes no sound in FL, so it must not render here either.
+      muted: (payload[position + 19] & 0x20) !== 0,
     };
     if (patternId != null) {
       patternRecords += 1;
@@ -316,8 +320,14 @@ export function parseFlp(input) {
     || right.coverage - left.coverage
   ))[0];
   let clips = playlist?.clips ? [...playlist.clips] : [];
+  // Drop clips muted in the FL playlist before anything expands them into
+  // notes. If the arrangement had clips but every one is muted, the project
+  // is silent in FL too, so the sequential fallback below must not revive
+  // the patterns.
+  const hadArrangementClips = clips.length > 0;
+  clips = clips.filter(clip => !clip.muted);
 
-  if (!clips.length) {
+  if (!clips.length && !hadArrangementClips) {
     let position = 0;
     for (const pattern of patterns.values()) {
       if (!pattern.notes.length) continue;

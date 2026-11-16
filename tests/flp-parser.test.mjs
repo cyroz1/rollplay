@@ -42,7 +42,7 @@ function makeNote(position, channel = 0) {
   return bytes;
 }
 
-function makePlaylistRecord(position, recordSize) {
+function makePlaylistRecord(position, recordSize, muted = false) {
   const bytes = new Uint8Array(recordSize);
   const view = new DataView(bytes.buffer);
   view.setUint32(0, position, true);
@@ -50,6 +50,7 @@ function makePlaylistRecord(position, recordSize) {
   view.setUint16(6, 0x5001, true);
   view.setUint32(8, 384, true);
   view.setUint16(12, 499, true);
+  if (muted) bytes[19] |= 0x20;
   return bytes;
 }
 
@@ -64,9 +65,9 @@ function utf16(value) {
   return new Uint8Array(Buffer.from(`${value}\0`, "utf16le"));
 }
 
-function makeFlp({ recordSize, clipCount, version = "25.2.4.4960", noteEvent = 224, noteChannels = [0, 0, 0] }) {
+function makeFlp({ recordSize, clipCount, version = "25.2.4.4960", noteEvent = 224, noteChannels = [0, 0, 0], mutedClips = [] }) {
   const notes = concat(...noteChannels.map((channel, index) => makeNote(index * 96, channel)));
-  const playlist = concat(...Array.from({ length: clipCount }, (_, index) => makePlaylistRecord(index * 384, recordSize)));
+  const playlist = concat(...Array.from({ length: clipCount }, (_, index) => makePlaylistRecord(index * 384, recordSize, mutedClips.includes(index))));
   const events = concat(
     new Uint8Array([65, 1, 0]),
     blobEvent(noteEvent, notes),
@@ -126,6 +127,19 @@ test("keeps all FL Studio 26 playlist clips", () => {
   const project = parseFlp(makeFlp({ recordSize: 88, clipCount: 172, version: "26.1.4.5589" }));
   assert.equal(project.clips.length, 172);
   assert.equal(project.notes.length, 172 * 3);
+});
+
+test("skips playlist clips muted in FL Studio", () => {
+  const project = parseFlp(makeFlp({ recordSize: 80, clipCount: 4, mutedClips: [1, 3] }));
+  assert.deepEqual(project.clips.map(clip => clip.at), [0, 768]);
+  assert.equal(project.notes.length, 2 * 3);
+  assert.deepEqual([...new Set(project.notes.map(note => Math.floor(note.at / 384)))], [0, 2]);
+});
+
+test("renders nothing when every arranged clip is muted", () => {
+  const project = parseFlp(makeFlp({ recordSize: 80, clipCount: 2, mutedClips: [0, 1] }));
+  assert.equal(project.clips.length, 0);
+  assert.equal(project.notes.length, 0);
 });
 
 test("turns direct FL Studio audio playlist clips into grouped percussion layers", () => {
