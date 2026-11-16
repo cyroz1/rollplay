@@ -134,3 +134,4 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .background-palette-remove{height:35px;border:1px solid var(--border);border-radius:4px;padding:0 10px;background:none;color:#d8d3e8;font:600 11px inherit;cursor:pointer}
 .background-palette-remove:hover{border-color:var(--accent)}
 .background-palette-empty{display:block;margin:10px 0 2px;color:var(--muted);font-size:10px;line-height:1.4}
+.range-inputs{display:grid;grid-template-columns:1fr 1fr;gap:10px}.range-inputs.hidden{display:none}.range-inputs .stacked-control{margin:6px 0}.stacked-control input[type="number"],.stacked-control input[type="text"]{height:41px;border:1px solid #41404b;border-radius:4px;padding:0 10px;background:#19191f;color:#eeedf2;font-size:12px;width:100%}

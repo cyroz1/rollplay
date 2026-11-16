@@ -3,7 +3,7 @@ import { parseAls } from "./als-parser.js";
 import { createMidi } from "./midi-export.js";
 import { Visualizer, createLayerStyle } from "./visualizer.js";
 import { computePeaks, matchAudioPattern } from "./waveform.js";
-import { autoVideoBitrate, renderMp4 } from "./exporter.js";
+import { autoVideoBitrate, projectBarCount, projectBarSeconds, renderMp4, resolveRenderRange } from "./exporter.js";
 import { createColorRamp, lightenColor } from "./color-utils.js";
 import { findPresetRecord, readPresetRecords, removePresetRecord, upsertPresetRecord, writePresetRecords } from "./preset-store.js";
 
@@ -92,6 +92,11 @@ const state = {
     resolution: "1080x1920",
     fps: 60,
     maxSize: "auto",
+    rangeMode: "full",
+    rangeStartBar: 1,
+    rangeEndBar: 0,
+    rangeStartTime: 0,
+    rangeEndTime: 0,
     enabledPatterns: new Set(),
     trackModes: new Map(),
     layerStyles: new Map(),
@@ -109,6 +114,20 @@ let selectedCustomizationPreset = "";
 function formatTime(seconds) {
   const safe = Math.max(0, Math.floor(seconds || 0));
   return `${Math.floor(safe / 60)}:${String(safe % 60).padStart(2, "0")}`;
+}
+
+/** Parses a range time field: "1:30", "90", or "1:30.5" become seconds; blank/invalid is 0. */
+function parseTimeInput(value) {
+  const text = String(value ?? "").trim();
+  if (!text) return 0;
+  const parts = text.split(":");
+  if (parts.length === 2) {
+    const minutes = Number(parts[0]);
+    const seconds = Number(parts[1]);
+    return Number.isFinite(minutes) && Number.isFinite(seconds) ? Math.max(0, minutes * 60 + seconds) : 0;
+  }
+  const plain = Number(text);
+  return Number.isFinite(plain) ? Math.max(0, plain) : 0;
 }
 
 function formatSignedPercent(value) {
@@ -225,6 +244,36 @@ function refreshSizeHint() {
     hint.textContent = `Auto · ${(bitrate / 1_000_000).toFixed(1)} Mbps at ${state.settings.fps} FPS`;
   } else {
     hint.textContent = `Targets a maximum file size of ${value} MB`;
+  }
+}
+
+function refreshRangeControls() {
+  const mode = state.settings.rangeMode || "full";
+  element("range-mode-input").value = mode;
+  element("range-bars-row").classList.toggle("hidden", mode !== "bars");
+  element("range-time-row").classList.toggle("hidden", mode !== "time");
+  element("range-start-bar").value = String(state.settings.rangeStartBar || 1);
+  element("range-end-bar").value = String(state.settings.rangeEndBar || 0);
+  element("range-start-time").value = formatTime(state.settings.rangeStartTime || 0);
+  element("range-end-time").value = state.settings.rangeEndTime > 0 ? formatTime(state.settings.rangeEndTime) : "";
+  const hint = element("range-hint");
+  if (!state.project) {
+    hint.textContent = "Load a project to set a render range.";
+    return;
+  }
+  const totalBars = projectBarCount(state.project);
+  if (mode === "full") {
+    hint.textContent = `Full project · ${totalBars} bars · ${formatTime(state.project.duration)}`;
+    return;
+  }
+  const range = resolveRenderRange(state.project, state.settings, state.project.duration);
+  if (mode === "bars") {
+    const barSeconds = projectBarSeconds(state.project);
+    const startBar = Math.floor(range.start / barSeconds) + 1;
+    const endBar = Math.min(totalBars, Math.max(startBar, Math.round(range.end / barSeconds)));
+    hint.textContent = `Bars ${startBar} to ${endBar} of ${totalBars} · ${formatTime(range.duration)} of video`;
+  } else {
+    hint.textContent = `${formatTime(range.start)} to ${formatTime(range.end)} · ${formatTime(range.duration)} of video`;
   }
 }
 
@@ -681,6 +730,7 @@ async function loadProject(file) {
     element("clear-pattern-selection").disabled = project.patterns.length === 0;
     refreshPatterns();
     refreshLayerStyleControls();
+    refreshRangeControls();
     seek(0);
     notify(`Loaded ${project.patterns.length} patterns and ${project.notes.length.toLocaleString()} notes from ${formatName}.`);
   } catch (error) {
@@ -873,6 +923,7 @@ function refreshSettingsControls() {
   element("edge-zoom-strength-value").value = `${state.settings.edgeZoomStrength}%`;
   element("fps-input").value = String(state.settings.fps);
   element("size-input").value = String(state.settings.maxSize);
+  refreshRangeControls();
   refreshBackgroundControls();
   refreshPlayheadControls();
   applyFrameSettings(state.settings.resolution, state.settings.framePreset);
@@ -1078,6 +1129,11 @@ function bindControls() {
     state.settings.maxSize = event.target.value === "auto" ? "auto" : Number(event.target.value);
     refreshSizeHint();
   };
+  element("range-mode-input").onchange = event => { state.settings.rangeMode = event.target.value; refreshRangeControls(); };
+  element("range-start-bar").onchange = event => { state.settings.rangeStartBar = Math.max(1, Math.floor(Number(event.target.value)) || 1); refreshRangeControls(); };
+  element("range-end-bar").onchange = event => { state.settings.rangeEndBar = Math.max(0, Math.floor(Number(event.target.value)) || 0); refreshRangeControls(); };
+  element("range-start-time").onchange = event => { state.settings.rangeStartTime = parseTimeInput(event.target.value); refreshRangeControls(); };
+  element("range-end-time").onchange = event => { state.settings.rangeEndTime = parseTimeInput(event.target.value); refreshRangeControls(); };
   element("customization-preset-input").onchange = event => {
     selectedCustomizationPreset = event.target.value;
     refreshPresetControls();

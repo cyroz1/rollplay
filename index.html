@@ -325,6 +325,16 @@
                 <label class="stacked-control"><span>Frame rate</span><select id="fps-input"><option value="60">60 FPS</option><option value="30">30 FPS</option><option value="24">24 FPS</option></select></label>
                 <label class="stacked-control"><span>File size / bitrate</span><select id="size-input"><option value="auto" selected>Auto · resolution optimized</option><option value="5">5 MB</option><option value="10">10 MB</option><option value="20">20 MB</option><option value="50">50 MB</option><option value="100">100 MB</option><option value="200">200 MB</option><option value="500">500 MB</option></select></label>
                 <small class="export-size-hint" id="size-hint">Auto · 13.1 Mbps at 60 FPS</small>
+                <label class="stacked-control"><span>Render range</span><select id="range-mode-input"><option value="full" selected>Full project</option><option value="bars">Bar range</option><option value="time">Time range</option></select></label>
+                <div class="range-inputs hidden" id="range-bars-row">
+                  <label class="stacked-control"><span>Start bar</span><input id="range-start-bar" type="number" min="1" step="1" value="1" aria-label="First bar to render" /></label>
+                  <label class="stacked-control"><span>End bar</span><input id="range-end-bar" type="number" min="0" step="1" value="0" placeholder="Last bar" aria-label="Last bar to render, 0 means the last bar" /></label>
+                </div>
+                <div class="range-inputs hidden" id="range-time-row">
+                  <label class="stacked-control"><span>Start time</span><input id="range-start-time" type="text" value="0:00" placeholder="0:00" aria-label="Render start time, minutes and seconds" /></label>
+                  <label class="stacked-control"><span>End time</span><input id="range-end-time" type="text" value="" placeholder="End" aria-label="Render end time, minutes and seconds, blank means the end" /></label>
+                </div>
+                <small class="export-size-hint" id="range-hint">Load a project to set a render range.</small>
                 <button class="button button-primary render-button" id="render-button" disabled>Render video</button>
                 <div class="render-progress hidden" id="render-progress"><div class="progress-track"><div id="progress-fill"></div></div><span id="progress-label">Preparing…</span></div>
               </div>

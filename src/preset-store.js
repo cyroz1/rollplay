@@ -39,6 +39,11 @@ export const GLOBAL_PRESET_KEYS = Object.freeze([
   "resolution",
   "fps",
   "maxSize",
+  "rangeMode",
+  "rangeStartBar",
+  "rangeEndBar",
+  "rangeStartTime",
+  "rangeEndTime",
 ]);
 
 function normalizeName(value) {

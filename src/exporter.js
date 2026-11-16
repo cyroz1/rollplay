@@ -27,7 +27,7 @@ async function openExportStreamer(suggestedName) {
   }
 }
 
-async function encodeAudio(audioBuffer, onProgress, streamer) {
+async function encodeAudio(audioBuffer, onProgress, streamer, startSeconds = 0, endSeconds = Number.POSITIVE_INFINITY) {
   if (!audioBuffer || typeof AudioEncoder === "undefined") return null;
   const sampleRate = audioBuffer.sampleRate;
   const channels = Math.min(audioBuffer.numberOfChannels, 2);
@@ -51,17 +51,20 @@ async function encodeAudio(audioBuffer, onProgress, streamer) {
   });
   encoder.configure(config);
 
+  const startSample = Math.min(audioBuffer.length, Math.max(0, Math.floor(startSeconds * sampleRate)));
+  const endSample = Math.min(audioBuffer.length, Math.max(startSample, Math.ceil(endSeconds * sampleRate)));
+  const sliceLength = Math.max(1, endSample - startSample);
   const blockSize = 1024;
-  for (let offset = 0; offset < audioBuffer.length; offset += blockSize) {
-    const frames = Math.min(blockSize, audioBuffer.length - offset);
+  for (let offset = startSample; offset < endSample; offset += blockSize) {
+    const frames = Math.min(blockSize, endSample - offset);
     const planar = new Float32Array(frames * channels);
     for (let channel = 0; channel < channels; channel++) planar.set(audioBuffer.getChannelData(channel).subarray(offset, offset + frames), channel * frames);
-    const audio = new AudioData({ format: "f32-planar", sampleRate, numberOfFrames: frames, numberOfChannels: channels, timestamp: Math.round(offset / sampleRate * 1_000_000), data: planar });
+    const audio = new AudioData({ format: "f32-planar", sampleRate, numberOfFrames: frames, numberOfChannels: channels, timestamp: Math.round((offset - startSample) / sampleRate * 1_000_000), data: planar });
     encoder.encode(audio);
     audio.close();
     if (encoder.encodeQueueSize > 20) await new Promise(resolve => setTimeout(resolve, 0));
     await streamer?.drain();
-    if (offset % (blockSize * 80) === 0) onProgress?.(offset / audioBuffer.length * .12, "Encoding audio…");
+    if (offset % (blockSize * 80) === 0) onProgress?.((offset - startSample) / sliceLength * .12, "Encoding audio…");
   }
   await encoder.flush();
   encoder.close();
@@ -82,11 +85,53 @@ export function bitrateForMaxFileSize(maxSize, duration, audioBitrate = 0) {
   return Math.max(180_000, Math.floor(safeSize * 1_000_000 * 8 / safeDuration * .94 - safeAudioBitrate));
 }
 
+/** Seconds in one bar under the parsers' 4/4 model (one bar = ppq * 4 ticks). */
+export function projectBarSeconds(project) {
+  const tempo = Number(project?.tempo);
+  return 240 / (Number.isFinite(tempo) && tempo > 0 ? tempo : 120);
+}
+
+export function projectBarCount(project) {
+  const duration = Math.max(0, Number(project?.duration) || 0);
+  return Math.max(1, Math.ceil(duration / projectBarSeconds(project)));
+}
+
+/**
+ * Resolves the export range settings to absolute start/end seconds.
+ * rangeMode "bars" takes 1-based inclusive bar numbers (end bar 0 = last bar);
+ * "time" takes seconds (end time 0 = project end). A range that resolves to
+ * less than a tenth of a second falls back to the full available duration.
+ */
+export function resolveRenderRange(project, settings = {}, availableDuration) {
+  const full = Math.max(0, Number(availableDuration) || 0);
+  const fallback = { start: 0, end: full, duration: full };
+  if (!full) return fallback;
+  if (settings.rangeMode === "bars") {
+    const barSeconds = projectBarSeconds(project);
+    const totalBars = projectBarCount(project);
+    const startBar = Math.min(totalBars, Math.max(1, Math.floor(Number(settings.rangeStartBar)) || 1));
+    const requestedEnd = Math.floor(Number(settings.rangeEndBar)) || 0;
+    const endBar = Math.min(totalBars, Math.max(startBar, requestedEnd > 0 ? requestedEnd : totalBars));
+    const start = (startBar - 1) * barSeconds;
+    const end = Math.min(full, endBar * barSeconds);
+    return end - start >= .1 ? { start, end, duration: end - start } : fallback;
+  }
+  if (settings.rangeMode === "time") {
+    const start = Math.min(full, Math.max(0, Number(settings.rangeStartTime) || 0));
+    const requestedEnd = Number(settings.rangeEndTime) || 0;
+    const end = Math.min(full, requestedEnd > 0 ? requestedEnd : full);
+    return end - start >= .1 ? { start, end, duration: end - start } : fallback;
+  }
+  return fallback;
+}
+
 export async function renderMp4(project, settings, audioBuffer, onProgress, suggestedName) {
   if (typeof VideoEncoder === "undefined") throw new Error("MP4 export requires a recent Chrome, Edge, or another browser with WebCodecs support.");
   const [width, height] = settings.resolution.split("x").map(Number);
   const fps = Number(settings.fps);
-  const duration = audioBuffer ? Math.min(project.duration, audioBuffer.duration) : project.duration;
+  const fullDuration = audioBuffer ? Math.min(project.duration, audioBuffer.duration) : project.duration;
+  const range = resolveRenderRange(project, settings, fullDuration);
+  const duration = range.duration;
   const frameCount = Math.ceil(duration * fps);
   const audioBudget = audioBuffer ? 192000 : 0;
   const bitrate = settings.maxSize === "auto"
@@ -116,10 +161,10 @@ export async function renderMp4(project, settings, audioBuffer, onProgress, sugg
     });
     encoder.configure(config);
 
-    const audio = await encodeAudio(audioBuffer, onProgress, streamer);
+    const audio = await encodeAudio(audioBuffer, onProgress, streamer, range.start, range.end);
     for (let frame = 0; frame < frameCount; frame++) {
       if (encoderError) throw encoderError;
-      visualizer.draw(frame / fps);
+      visualizer.draw(range.start + frame / fps);
       const videoFrame = new VideoFrame(canvas, { timestamp: Math.round(frame / fps * 1_000_000), duration: Math.round(1_000_000 / fps) });
       encoder.encode(videoFrame, { keyFrame: frame % (fps * 2) === 0 });
       videoFrame.close();
