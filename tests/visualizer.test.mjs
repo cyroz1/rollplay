@@ -249,6 +249,40 @@ test("layer parallax makes foreground layers travel faster than background layer
   assert.equal(visualizer.layerSpeed(1), 1, "Disabling layer parallax should restore normal travel speed.");
 });
 
+test("slow parallax layers stay drawn until their notes fully leave the screen", () => {
+  const context = {
+    globalAlpha: 1, fillStyle: "",
+    save() {}, restore() {}, setTransform() {}, fillRect() {},
+    createLinearGradient() { return { addColorStop() {} }; },
+  };
+  const backNote = { at: 0, length: 96, key: 60, channel: 0, velocity: 100, patternId: 2 };
+  const project = {
+    tempo: 120, ppq: 96,
+    patterns: [{ id: 1, name: "Front", notes: [] }, { id: 2, name: "Back", notes: [backNote] }],
+    notes: [backNote],
+  };
+  const settings = {
+    enabledPatterns: new Set([1, 2]),
+    layerOrder: [1, 2],
+    layerParallax: true,
+    parallaxStrength: 200,
+    effects: false,
+  };
+  const visualizer = new Visualizer({ width: 1000, height: 1000, getContext: () => context }, project, settings);
+  const drawn = [];
+  visualizer.drawNote = (note) => { drawn.push(note); };
+
+  // At tick 900 the back layer (speed 0.56) still shows the note's tail
+  // about 109 px inside the left edge, so it must not be culled yet.
+  visualizer.draw(900 / 192);
+  assert.ok(drawn.includes(backNote), "A background note still on screen should be drawn.");
+
+  // At tick 2000 it has fully left the screen even at the slow speed.
+  drawn.length = 0;
+  visualizer.draw(2000 / 192);
+  assert.equal(drawn.includes(backNote), false, "A background note fully off screen should be culled.");
+});
+
 test("edge zoom grows notes as they travel toward the edge of the frame", () => {
   const project = {
     tempo: 120, ppq: 96,

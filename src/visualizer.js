@@ -647,8 +647,14 @@ export class Visualizer {
     const hitX = this.playheadPosition(width, landscape);
     this.refreshStepLanes();
     const pixelsPerTick = this.pixelsPerTick(width);
-    const shownBefore = Math.ceil((hitX + width * .11) / pixelsPerTick);
-    const shownAfter = Math.ceil((width - hitX + width * .2) / pixelsPerTick);
+    const layerOrder = settings.layerOrder?.length ? settings.layerOrder : project.patterns.map(pattern => pattern.id);
+    // Parallax layers drift at their own speeds, so a visibility window
+    // sized for speed 1 drops slow background layers while their notes are
+    // still on screen. Size the window for the slowest layer instead.
+    const speeds = layerOrder.map((_, index) => this.layerSpeedForIndex(index, layerOrder.length));
+    const slowestSpeed = speeds.length ? Math.max(.05, Math.min(...speeds)) : 1;
+    const shownBefore = Math.ceil((hitX + width * .11) / (pixelsPerTick * slowestSpeed));
+    const shownAfter = Math.ceil((width - hitX + width * .2) / (pixelsPerTick * slowestSpeed));
     context.globalAlpha = 1;
     context.setTransform(1, 0, 0, 1, 0, 0);
     this.drawBackground(seconds, tick);
@@ -675,7 +681,6 @@ export class Visualizer {
       if (note.at + note.length < tick - shownBefore || !settings.enabledPatterns.has(note.patternId)) continue;
       visible.push(note);
     }
-    const layerOrder = settings.layerOrder?.length ? settings.layerOrder : project.patterns.map(pattern => pattern.id);
     const layerStyles = new Map(layerOrder.map(patternId => [patternId, this.layerStyle(patternId)]));
     this.waveformPeaksByPattern = new Map();
     for (const pattern of project.patterns) {
