@@ -265,13 +265,22 @@ export class Visualizer {
       const swell = Math.sin(Math.min(1, hitAge / (this.project.ppq * .9)) * Math.PI);
       return { size: impact * .6, offset: swell * impact * 2.4 * scale };
     }
-    if (style.noteAnimation === "drop") {
+    if (style.noteAnimation === "drop" || style.noteAnimation === "drop-bounce") {
       const noteDuration = Math.max(1, Number(note.length) || 1);
       const settleDuration = Math.min(noteDuration, this.project.ppq * .34);
       const distance = 22 * scale;
       if (hitAge <= noteDuration) {
         const progress = Math.min(1, hitAge / settleDuration);
         return { size: 0, offset: distance * smoother(progress) };
+      }
+      if (style.noteAnimation === "drop-bounce") {
+        // Elastic release: the note springs back past its resting spot
+        // and wobbles around it with a decaying oscillation.
+        const releaseDuration = this.project.ppq * .5;
+        const releaseProgress = Math.min(1, (hitAge - noteDuration) / releaseDuration);
+        if (releaseProgress >= 1) return { size: 0, offset: 0 };
+        const spring = Math.pow(2, -5 * releaseProgress) * Math.cos(releaseProgress * Math.PI * 3.5);
+        return { size: 0, offset: distance * spring };
       }
       const releaseDuration = this.project.ppq * .18;
       const releaseProgress = Math.min(1, (hitAge - noteDuration) / releaseDuration);

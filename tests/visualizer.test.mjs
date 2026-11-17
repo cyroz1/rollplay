@@ -101,6 +101,11 @@ test("layer styles support independent colors, opacity, and note animations", ()
   assert.equal(visualizer.noteMotion(note, note.length, 1).offset, 22, "Drop animation should remain down through the note end.");
   assert.ok(visualizer.noteMotion(note, note.length + 96 * .09, 1).offset > 0, "Drop animation should release after the note ends.");
   assert.equal(visualizer.noteMotion(note, note.length + 96 * .18, 1).offset, 0, "Drop animation should return after its release.");
+  settings.layerStyles.get(1).noteAnimation = "drop-bounce";
+  assert.equal(visualizer.noteMotion(note, 0, 1).offset, 0, "Drop-bounce should begin at the note origin like drop.");
+  assert.equal(visualizer.noteMotion(note, note.length * .5, 1).offset, 22, "Drop-bounce should hold the note down while it plays.");
+  assert.ok(visualizer.noteMotion(note, note.length + 96 * .125, 1).offset < 0, "Drop-bounce should spring past its resting position on release.");
+  assert.equal(visualizer.noteMotion(note, note.length + 96 * .5, 1).offset, 0, "Drop-bounce should settle back at rest after its elastic release.");
   settings.layerStyles.get(1).noteAnimation = "bounce";
   assert.equal(visualizer.noteMotion(note, 0, 1).offset, 22, "Bounce animation should start at the full drop distance.");
   assert.equal(visualizer.noteMotion(note, 0, 1).size, 0, "Bounce animation should be purely positional.");
