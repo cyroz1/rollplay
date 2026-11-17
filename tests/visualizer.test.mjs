@@ -93,8 +93,8 @@ test("layer styles support independent colors, opacity, and note animations", ()
   settings.layerStyles.get(1).noteAnimation = "bounce";
   assert.equal(visualizer.noteMotion(note, 0, 1).offset, 22, "Bounce animation should start at the full drop distance.");
   assert.equal(visualizer.noteMotion(note, 0, 1).size, 0, "Bounce animation should be purely positional.");
-  assert.ok(visualizer.noteMotion(note, 3.2, 1).offset < 0, "Bounce animation should overshoot past its resting position while settling.");
-  assert.equal(visualizer.noteMotion(note, 24, 1).offset, 0, "Bounce animation should land exactly at rest by the end of its settle.");
+  assert.ok(visualizer.noteMotion(note, 13, 1).offset < 0, "Bounce animation should overshoot past its resting position while settling.");
+  assert.equal(visualizer.noteMotion(note, 48, 1).offset, 0, "Bounce animation should land exactly at rest by the end of its settle.");
   assert.equal(visualizer.noteMotion(note, note.length * .5, 1).offset, 0, "Bounce animation should hold at rest while the note plays.");
   assert.equal(visualizer.noteMotion(note, note.length + 96 * .18, 1).offset, 0, "Bounce animation should stay at rest after the note ends.");
 });

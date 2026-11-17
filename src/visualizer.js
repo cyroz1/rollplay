@@ -276,12 +276,12 @@ export class Visualizer {
     }
     if (style.noteAnimation === "bounce") {
       const noteDuration = Math.max(1, Number(note.length) || 1);
-      const settleDuration = Math.min(noteDuration, this.project.ppq * .25);
+      const settleDuration = Math.min(noteDuration, this.project.ppq * .5);
       const distance = 22 * scale;
       if (hitAge > noteDuration) return { size: 0, offset: 0 };
       const progress = Math.min(1, hitAge / settleDuration);
       if (progress >= 1) return { size: 0, offset: 0 };
-      const eased = 1 + Math.pow(2, -7.5 * progress) * Math.sin((progress * 7.5 - .75) * (2 * Math.PI / 3));
+      const eased = 1 + Math.pow(2, -5.5 * progress) * Math.sin((progress * 5.5 - .75) * (2 * Math.PI / 3));
       return { size: 0, offset: distance * (1 - eased) };
     }
     if (style.noteAnimation === "wave") {
