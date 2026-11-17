@@ -11,6 +11,8 @@ export const GLOBAL_PRESET_KEYS = Object.freeze([
   "backgroundPaletteColors",
   "backgroundPulseLayer",
   "backgroundPulseLayers",
+  "backgroundPulseEnabled",
+  "backgroundPulseIntensity",
   "noteSize",
   "barsVisible",
   "melodyVerticalZoom",

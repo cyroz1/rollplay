@@ -348,6 +348,7 @@ export class Visualizer {
   }
 
   backgroundPulse(tick) {
+    if (this.settings.backgroundPulseEnabled === false) return 0;
     const linked = new Set();
     if (Array.isArray(this.settings.backgroundPulseLayers)) {
       for (const id of this.settings.backgroundPulseLayers) {
@@ -374,11 +375,14 @@ export class Visualizer {
       const note = notes[index];
       if (note.at > tick) break;
       if (!linked.has(String(note.patternId))) continue;
-      if (tick < note.at + note.length) pulse = Math.max(pulse, .35);
+      // Every hit is a single step: one strike that decays on its own
+      // schedule. Note length never holds the pulse up.
       const hit = Math.exp(-(tick - note.at) / (this.project.ppq * .45));
       if (hit > pulse) pulse = hit;
     }
-    return pulse;
+    const rawIntensity = Number(this.settings.backgroundPulseIntensity ?? 100);
+    const intensity = Number.isFinite(rawIntensity) ? clamp(rawIntensity / 100, 0, 2) : 1;
+    return pulse * intensity;
   }
 
   pulseOverlayColor() {

@@ -64,6 +64,8 @@ const state = {
     backgroundPaletteColors: [],
     backgroundPulseLayer: null,
     backgroundPulseLayers: [],
+    backgroundPulseEnabled: true,
+    backgroundPulseIntensity: 100,
     noteSize: 145,
     barsVisible: 3,
     melodyVerticalZoom: 100,
@@ -166,6 +168,11 @@ function refreshBackgroundControls() {
   element("background-grid-controls").classList.toggle("hidden", mode !== "grid");
   element("background-palette-controls").classList.toggle("hidden", mode !== "palette");
   element("background-pulse-controls").classList.toggle("hidden", mode === "image");
+  const pulseEnabled = state.settings.backgroundPulseEnabled !== false;
+  element("background-pulse-enabled-input").checked = pulseEnabled;
+  element("background-pulse-intensity-input").disabled = !pulseEnabled;
+  element("background-pulse-intensity-input").value = String(state.settings.backgroundPulseIntensity ?? 100);
+  element("background-pulse-intensity-value").value = `${state.settings.backgroundPulseIntensity ?? 100}%`;
   element("background-grid-color").value = state.settings.backgroundGridColor;
   refreshBackgroundPaletteControls();
   const pulseList = element("background-pulse-layer-list");
@@ -185,6 +192,7 @@ function refreshBackgroundControls() {
     checkbox.className = "switch";
     checkbox.type = "checkbox";
     checkbox.checked = linkedPulseLayers.has(String(pattern.id));
+    checkbox.disabled = !pulseEnabled;
     checkbox.setAttribute("aria-label", `Brightness pulse on ${name.textContent}`);
     checkbox.onchange = () => {
       const selected = new Set(
@@ -1015,6 +1023,16 @@ function bindControls() {
   element("background-gradient-angle-input").oninput = event => {
     state.settings.backgroundGradientAngle = Number(event.target.value);
     element("background-gradient-angle-value").value = `${event.target.value}°`;
+    state.visualizer?.draw(currentPosition());
+  };
+  element("background-pulse-enabled-input").onchange = event => {
+    state.settings.backgroundPulseEnabled = event.target.checked;
+    refreshBackgroundControls();
+    state.visualizer?.draw(currentPosition());
+  };
+  element("background-pulse-intensity-input").oninput = event => {
+    state.settings.backgroundPulseIntensity = Number(event.target.value);
+    element("background-pulse-intensity-value").value = `${event.target.value}%`;
     state.visualizer?.draw(currentPosition());
   };
   element("background-image-input").onchange = event => loadBackgroundImage(event.target.files[0]);

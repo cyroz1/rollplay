@@ -362,6 +362,19 @@ test("background pulse follows the linked layer's notes", () => {
   assert.ok(decayed > 0 && decayed < .5, "The pulse should decay after the hit.");
   settings.backgroundPulseLayer = null;
   assert.equal(visualizer.backgroundPulse(0), 0, "No linked layer should mean no pulse.");
+
+  const longProject = {
+    tempo: 120, ppq: 96,
+    patterns: [{ id: 1, name: "Lead", notes: [] }],
+    notes: [{ at: 0, length: 384, key: 60, channel: 0, velocity: 100, patternId: 1 }],
+  };
+  const longSettings = { backgroundPulseLayer: 1 };
+  const longVisualizer = new Visualizer({ width: 1080, height: 1920, getContext: () => ({}) }, longProject, longSettings);
+  assert.ok(longVisualizer.backgroundPulse(200) < .05, "A long held note should not hold the pulse up; every pulse is a single step.");
+  longSettings.backgroundPulseIntensity = 200;
+  assert.ok(Math.abs(longVisualizer.backgroundPulse(0) - 2) < 1e-9, "Pulse intensity should scale the hit.");
+  longSettings.backgroundPulseEnabled = false;
+  assert.equal(longVisualizer.backgroundPulse(0), 0, "Turning the background pulse off should silence it.");
 });
 
 test("background pulse can follow multiple layers at once", () => {
