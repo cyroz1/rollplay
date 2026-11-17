@@ -320,7 +320,7 @@ test("slow parallax layers stay drawn until their notes fully leave the screen",
   assert.equal(drawn.includes(backNote), false, "A background note fully off screen should be culled.");
 });
 
-test("edge zoom grows notes as they travel toward the edge of the frame", () => {
+test("edge parallax spreads layers more the farther notes sit from the playhead", () => {
   const project = {
     tempo: 120, ppq: 96,
     patterns: [{ id: 1, name: "Front", notes: [] }, { id: 2, name: "Back", notes: [] }],
@@ -328,17 +328,19 @@ test("edge zoom grows notes as they travel toward the edge of the frame", () => 
   };
   const settings = { framePreset: "portrait", layerOrder: [1, 2], edgeZoom: true, edgeZoomStrength: 100 };
   const visualizer = new Visualizer({ width: 1080, height: 1920, getContext: () => ({}) }, project, settings);
-  assert.equal(visualizer.edgeZoomFactor(1080, 1080, 1), 1, "Notes should enter at normal size at the right edge.");
-  const frontEdge = visualizer.edgeZoomFactor(0, 1080, 1);
-  const backEdge = visualizer.edgeZoomFactor(0, 1080, 0);
-  assert.ok(frontEdge > 1.8, "Foreground notes should grow substantially by the left edge.");
-  assert.ok(backEdge > 1 && backEdge < frontEdge, "Background layers should grow less than foreground layers.");
-  assert.ok(visualizer.edgeZoomFactor(540, 1080, 1) < frontEdge, "Growth should build as the note travels.");
+  const hitX = 540;
+  assert.equal(visualizer.edgeParallaxFactor(hitX, 1080, hitX, 1), 1, "Notes at the playhead should keep the base parallax spacing.");
+  const frontEdge = visualizer.edgeParallaxFactor(0, 1080, hitX, 1);
+  const backEdge = visualizer.edgeParallaxFactor(0, 1080, hitX, 0);
+  assert.ok(frontEdge > 1.8, "Foreground layers should spread substantially by the edge.");
+  assert.ok(backEdge > 1 && backEdge < frontEdge, "Background layers should spread less than foreground layers.");
+  assert.equal(visualizer.edgeParallaxFactor(1080, 1080, hitX, 1), frontEdge, "Both edges should spread equally.");
+  assert.ok(visualizer.edgeParallaxFactor(810, 1080, hitX, 1) < frontEdge, "Spread should build with distance from the playhead.");
   settings.edgeZoomStrength = 0;
-  assert.equal(visualizer.edgeZoomFactor(0, 1080, 1), 1, "Zero edge zoom strength should keep sizes flat.");
+  assert.equal(visualizer.edgeParallaxFactor(0, 1080, hitX, 1), 1, "Zero edge parallax strength should keep spacing flat.");
   settings.edgeZoomStrength = 100;
   settings.edgeZoom = false;
-  assert.equal(visualizer.edgeZoomFactor(0, 1080, 1), 1, "Disabling edge zoom should keep sizes flat.");
+  assert.equal(visualizer.edgeParallaxFactor(0, 1080, hitX, 1), 1, "Disabling edge parallax should keep spacing flat.");
 });
 
 test("background pulse follows the linked layer's notes", () => {

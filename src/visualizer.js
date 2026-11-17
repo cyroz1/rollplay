@@ -223,12 +223,15 @@ export class Visualizer {
     return 1 + (baseSpeed - 1) * strength;
   }
 
-  edgeZoomFactor(x, width, depth = 1) {
+  edgeParallaxFactor(x, width, hitX, depth = 1) {
     if (this.settings.edgeZoom !== true) return 1;
     if (!(width > 0)) return 1;
     const rawStrength = Number(this.settings.edgeZoomStrength ?? 100);
     const strength = Number.isFinite(rawStrength) ? clamp(rawStrength / 100, 0, 2) : 1;
-    const travel = clamp(1 - x / width, 0, 1);
+    // Parallax spread grows with distance from the playhead toward
+    // either edge: layers separate more the farther a note sits from
+    // the hit line. Note sizes never change.
+    const travel = clamp(Math.abs(x - hitX) / (width / 2), 0, 1);
     const eased = travel * travel * (3 - 2 * travel);
     const layerScale = .35 + .65 * clamp(depth, 0, 1);
     return 1 + strength * eased * layerScale * .9;
@@ -546,12 +549,14 @@ export class Visualizer {
     const context = this.context;
     const style = this.styleForNote(note, layerStyles);
     const [main, light] = this.color(note, layerStyles);
-    const x0 = hitX + (note.at - tick) * pixelsPerTick * speed;
-    const x1 = x0 + Math.max(1, note.length * pixelsPerTick * speed);
+    const baseX0 = hitX + (note.at - tick) * pixelsPerTick * speed;
+    const baseX1 = baseX0 + Math.max(1, note.length * pixelsPerTick * speed);
+    const x0 = hitX + (baseX0 - hitX) * this.edgeParallaxFactor(baseX0, width, hitX, depth);
+    const x1 = hitX + (baseX1 - hitX) * this.edgeParallaxFactor(baseX1, width, hitX, depth);
     if (x1 < -25 || x0 > width + 30) return;
     const centerY = this.noteY(note, height, layerStyles);
     const noteScale = Number(this.settings.noteSize ?? 100) / 100;
-    const waveHeight = Math.max(10, height * .078 * Math.sqrt(noteScale)) * this.edgeZoomFactor(x0, width, depth);
+    const waveHeight = Math.max(10, height * .078 * Math.sqrt(noteScale));
     const fade = Math.min(1, Math.max(.18, 1 - Math.max(0, x0 - width * .78) / (width * .43)));
     const gradient = context.createLinearGradient(x0, 0, x1, 0);
     gradient.addColorStop(0, main);
@@ -587,10 +592,9 @@ export class Visualizer {
     const noteScale = Number(this.settings.noteSize ?? 100) / 100;
     const step = this.isStep(note);
     const noteWidth = Math.max((step ? 13 : 20) * baseScale * Math.sqrt(noteScale), note.length * pixelsPerTick);
-    const x = rawX;
+    const x = hitX + (rawX - hitX) * this.edgeParallaxFactor(rawX, width, hitX, depth);
     const y = rawY;
     const scale = baseScale;
-    const zoom = this.edgeZoomFactor(x, width, depth);
     const bounce = motion.size;
     const sounding = note.at <= tick && note.at + note.length > tick;
     const highlightOpacity = this.noteHighlightOpacity(note, tick, style);
@@ -599,7 +603,7 @@ export class Visualizer {
 
     if (step) {
       const baseSize = (note.channel === 8 ? 10 : note.channel === 10 ? 7 : 8.2) * scale * noteScale;
-      const stepSize = baseSize * zoom * (1 + bounce * 1.05 + (sounding ? .13 : 0));
+      const stepSize = baseSize * (1 + bounce * 1.05 + (sounding ? .13 : 0));
       let stepColor = main;
       if (light !== main) {
         stepColor = context.createLinearGradient(x - stepSize, y, x + stepSize, y);
@@ -609,7 +613,7 @@ export class Visualizer {
       if (x + stepSize < -25 || x - stepSize > width + 30) return;
       if (this.settings.layerShadows !== false) {
         const shadow = this.shadowStyle();
-        const offset = this.shadowOffset(x, y, width, height, depth, shadow, zoom, baseScale);
+        const offset = this.shadowOffset(x, y, width, height, depth, shadow, 1, baseScale);
         if (shadow.depth > 0 && shadow.opacity > 0) {
           const blur = this.shadowBlurPixels(shadow, baseScale);
           context.save();
@@ -626,13 +630,13 @@ export class Visualizer {
     if (x + noteWidth < -25 || x > width + 30) return;
     const bass = note.channel === 7 || note.channel === 9;
     const baseHeight = (note.channel === 6 ? 15 : 19) * scale * noteScale;
-    const noteHeight = baseHeight * zoom * (1 + bounce * (bass ? .35 : .56));
+    const noteHeight = baseHeight * (1 + bounce * (bass ? .35 : .56));
     const gradient = context.createLinearGradient(x, y, x + noteWidth, y);
     gradient.addColorStop(0, main); gradient.addColorStop(1, light);
     const alpha = fade * velocity * style.opacity;
     if (this.settings.layerShadows !== false) {
       const shadow = this.shadowStyle();
-      const offset = this.shadowOffset(x, y, width, height, depth, shadow, zoom, baseScale);
+      const offset = this.shadowOffset(x, y, width, height, depth, shadow, 1, baseScale);
       if (shadow.depth > 0 && shadow.opacity > 0) {
         const blur = this.shadowBlurPixels(shadow, baseScale);
         context.save();
@@ -738,8 +742,13 @@ export class Visualizer {
     // still on screen. Size the window for the slowest layer instead.
     const speeds = layerOrder.map((_, index) => this.layerSpeedForIndex(index, layerOrder.length));
     const slowestSpeed = speeds.length ? Math.max(.05, Math.min(...speeds)) : 1;
-    const shownBefore = Math.ceil((hitX + width * .11) / (pixelsPerTick * slowestSpeed));
-    const shownAfter = Math.ceil((width - hitX + width * .2) / (pixelsPerTick * slowestSpeed));
+    // Edge parallax stretches note displacement by up to this factor,
+    // so the visibility window has to widen by the same amount or
+    // displaced notes would pop in at the frame edges.
+    const edgeBoost = this.edgeParallaxFactor(hitX + width / 2, width, hitX, 1);
+    const effectiveSpeed = slowestSpeed / edgeBoost;
+    const shownBefore = Math.ceil((hitX + width * .11) / (pixelsPerTick * effectiveSpeed));
+    const shownAfter = Math.ceil((width - hitX + width * .2) / (pixelsPerTick * effectiveSpeed));
     context.globalAlpha = 1;
     context.setTransform(1, 0, 0, 1, 0, 0);
     this.drawBackground(seconds, tick);
