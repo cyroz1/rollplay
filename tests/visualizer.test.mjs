@@ -47,6 +47,17 @@ test("layer styles support independent colors, opacity, and note animations", ()
   assert.equal(visualizer.noteHighlightOpacity(note, 0), 0, "The pulse should begin at note onset.");
   assert.ok(visualizer.noteHighlightOpacity(note, 24) > visualizer.noteHighlightOpacity(note, 12), "The pulse should rise once.");
   assert.equal(visualizer.noteHighlightOpacity(note, 60), 0, "The pulse should finish and stay off.");
+  settings.layerStyles.get(1).pulseDuration = 200;
+  assert.ok(visualizer.noteHighlightOpacity(note, 60) > 0, "A longer pulse duration should keep the highlight alive past the default window.");
+  settings.layerStyles.get(1).pulseDuration = 100;
+  const basePulse = visualizer.noteHighlightOpacity(note, 24);
+  settings.layerStyles.get(1).pulseIntensity = 200;
+  assert.equal(visualizer.noteHighlightOpacity(note, 24), basePulse * 2, "Pulse intensity should scale the highlight peak.");
+  settings.layerStyles.get(1).pulseIntensity = 100;
+  assert.equal(visualizer.highlightColor(settings.layerStyles.get(1)), "#ffffff", "The pulse highlight should default to white.");
+  settings.layerStyles.get(1).pulseColor = "#ff0000";
+  assert.equal(visualizer.highlightColor(settings.layerStyles.get(1)), "#ff0000", "The pulse highlight should use the selected pulse color.");
+  settings.layerStyles.get(1).pulseColor = "#ffffff";
   settings.layerStyles.get(1).playedNoteHighlight = "none";
   assert.equal(visualizer.noteHighlightOpacity(note, 24), 0);
   settings.layerStyles.get(1).playedNoteHighlight = "constant";
@@ -241,6 +252,9 @@ test("layer shadows fall away from a light above the frame, based on note positi
 
 test("new layers default to a brightness pulse highlight", () => {
   assert.equal(createLayerStyle(0).playedNoteHighlight, "pulse");
+  assert.equal(createLayerStyle(0).pulseDuration, 100);
+  assert.equal(createLayerStyle(0).pulseIntensity, 100);
+  assert.equal(createLayerStyle(0).pulseColor, "#ffffff");
   assert.equal(createLayerStyle(0).octaveOffset, 0);
 });
 

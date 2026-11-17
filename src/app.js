@@ -514,10 +514,18 @@ function refreshLayerStyleControls() {
   element("selection-count").textContent = selected.length ? `${selected.length} selected` : "None selected";
   if (!styles.length) return;
 
-  const properties = ["noteAnimation", "playedNoteHighlight", "particleAnimation", "colorMode", "primaryColor", "secondaryColor", "opacity", "octaveOffset"];
+  const properties = ["noteAnimation", "playedNoteHighlight", "pulseDuration", "pulseIntensity", "pulseColor", "particleAnimation", "colorMode", "primaryColor", "secondaryColor", "opacity", "octaveOffset"];
   const values = Object.fromEntries(properties.map(property => [property, commonValue(styles, property)]));
   element("note-animation-input").value = values.noteAnimation ?? "";
   element("played-note-highlight-input").value = values.playedNoteHighlight ?? "";
+  element("pulse-customization").disabled = values.playedNoteHighlight !== "pulse";
+  const pulseDuration = values.pulseDuration ?? styles[0].pulseDuration ?? 100;
+  element("pulse-duration-input").value = String(pulseDuration);
+  element("pulse-duration-value").value = values.pulseDuration == null ? "Mixed" : `${pulseDuration}%`;
+  const pulseIntensity = values.pulseIntensity ?? styles[0].pulseIntensity ?? 100;
+  element("pulse-intensity-input").value = String(pulseIntensity);
+  element("pulse-intensity-value").value = values.pulseIntensity == null ? "Mixed" : `${pulseIntensity}%`;
+  element("pulse-color-input").value = values.pulseColor ?? styles[0].pulseColor ?? "#ffffff";
   element("particle-animation-input").value = values.particleAnimation ?? "";
   element("color-mode-input").value = values.colorMode ?? "";
   element("layer-color-primary").value = values.primaryColor ?? styles[0].primaryColor;
@@ -1139,6 +1147,9 @@ function bindControls() {
   };
   element("layer-color-primary").oninput = event => applyLayerStyle("primaryColor", event.target.value);
   element("layer-color-secondary").oninput = event => applyLayerStyle("secondaryColor", event.target.value);
+  element("pulse-duration-input").oninput = event => applyLayerStyle("pulseDuration", Number(event.target.value));
+  element("pulse-intensity-input").oninput = event => applyLayerStyle("pulseIntensity", Number(event.target.value));
+  element("pulse-color-input").oninput = event => applyLayerStyle("pulseColor", event.target.value);
   element("apply-layer-gradient").onclick = applyLayerColorGradient;
   element("layer-opacity-input").oninput = event => applyLayerStyle("opacity", 1 - Number(event.target.value) / 100);
   element("resolution-input").onchange = event => {

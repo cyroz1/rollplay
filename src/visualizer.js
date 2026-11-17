@@ -11,6 +11,9 @@ export function createLayerStyle(index = 0) {
   return {
     noteAnimation: "bounce",
     playedNoteHighlight: "pulse",
+    pulseDuration: 100,
+    pulseIntensity: 100,
+    pulseColor: "#ffffff",
     particleAnimation: "burst",
     colorMode: "gradient",
     primaryColor,
@@ -293,12 +296,20 @@ export class Visualizer {
   noteHighlightOpacity(note, tick, style = this.layerStyle(note.patternId)) {
     if (tick < note.at || tick >= note.at + note.length || style.playedNoteHighlight === "none") return 0;
     if (style.playedNoteHighlight === "pulse") {
-      const pulseDuration = this.project.ppq * .62;
+      const rawDuration = Number(style.pulseDuration ?? 100);
+      const durationScale = Number.isFinite(rawDuration) ? clamp(rawDuration / 100, .25, 3) : 1;
+      const rawIntensity = Number(style.pulseIntensity ?? 100);
+      const intensityScale = Number.isFinite(rawIntensity) ? clamp(rawIntensity / 100, 0, 2) : 1;
+      const pulseDuration = this.project.ppq * .62 * durationScale;
       const progress = Math.min(1, (tick - note.at) / pulseDuration);
       if (progress >= 1) return 0;
-      return Math.sin(progress * Math.PI) * .4;
+      return Math.sin(progress * Math.PI) * .4 * intensityScale;
     }
     return .28;
+  }
+
+  highlightColor(style) {
+    return /^#[\da-f]{6}$/i.test(style?.pulseColor) ? style.pulseColor : "#ffffff";
   }
 
   playheadStyle(width) {
@@ -599,7 +610,7 @@ export class Visualizer {
         }
       }
       diamond(context, x, y, stepSize, stepColor, fade * velocity * style.opacity, true);
-      if (highlightOpacity > 0) diamond(context, x, y, stepSize * .58, "#ffffff", highlightOpacity * fade * style.opacity, true);
+      if (highlightOpacity > 0) diamond(context, x, y, stepSize * .58, this.highlightColor(style), highlightOpacity * fade * style.opacity, true);
       return;
     }
 
@@ -628,7 +639,7 @@ export class Visualizer {
     rounded(context, x, y - noteHeight / 2, noteWidth, noteHeight, 8 * scale);
     if (highlightOpacity > 0) {
       context.globalAlpha = highlightOpacity * fade * style.opacity;
-      context.fillStyle = "#ffffff";
+      context.fillStyle = this.highlightColor(style);
       rounded(context, x, y - noteHeight / 2, noteWidth, noteHeight, 8 * scale);
       context.globalAlpha = Math.min(.72, highlightOpacity * 1.55) * fade * style.opacity;
       rounded(context, x + 2 * scale, y - noteHeight / 2 + 2 * scale, Math.max(1, noteWidth - 4 * scale), 2.1 * scale, scale);
