@@ -204,7 +204,10 @@ test("step percussion notes render as filled diamonds", () => {
   settings.shadowColor = "#abcdef";
   settings.shadowDepth = 150;
   settings.shadowOpacity = 80;
-  assert.deepEqual(visualizer.shadowStyle(), { color: "#abcdef", depth: 1.5, opacity: .8 });
+  assert.deepEqual(visualizer.shadowStyle(), { color: "#abcdef", depth: 1.5, opacity: .8, blur: .4 });
+  settings.shadowBlur = 90;
+  assert.equal(visualizer.shadowStyle().blur, .9, "Shadow blur should follow the shadowBlur setting.");
+  settings.shadowBlur = 40;
   calls.length = 0;
   fillStyles.length = 0;
   visualizer.drawNote(note, 0, 1080, 1920, 540, 1);
@@ -219,6 +222,21 @@ test("step percussion notes render as filled diamonds", () => {
   calls.length = 0;
   visualizer.drawNote(note, 0, 1080, 1920, 540, 1);
   assert.equal(calls.filter(call => call === "fill").length, 1, "Disabling layer shadows should remove the extrusion.");
+});
+
+test("layer shadows fall away from a light above the frame, based on note position", () => {
+  const project = { tempo: 120, ppq: 96, patterns: [{ id: 1, name: "Lead", notes: [] }], notes: [] };
+  const visualizer = new Visualizer({ width: 1080, height: 1920, getContext: () => ({}) }, project, {});
+  const shadow = visualizer.shadowStyle();
+  const center = visualizer.shadowOffset(540, 960, 1080, 1920, 1, shadow, 1, 1);
+  const left = visualizer.shadowOffset(80, 960, 1080, 1920, 1, shadow, 1, 1);
+  const right = visualizer.shadowOffset(1000, 960, 1080, 1920, 1, shadow, 1, 1);
+  const near = visualizer.shadowOffset(540, 220, 1080, 1920, 1, shadow, 1, 1);
+  const far = visualizer.shadowOffset(540, 1700, 1080, 1920, 1, shadow, 1, 1);
+  assert.ok(Math.abs(center.x) < 1e-9, "A centered note should cast its shadow straight down.");
+  assert.ok(center.y > 0, "Shadows should fall downward from the light above the frame.");
+  assert.ok(left.x < 0 && right.x > 0, "Shadows should angle away from the frame center based on note position.");
+  assert.ok(Math.hypot(far.x, far.y) > Math.hypot(near.x, near.y), "Notes farther from the light should cast longer shadows.");
 });
 
 test("new layers default to a brightness pulse highlight", () => {

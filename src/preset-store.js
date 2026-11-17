@@ -33,6 +33,7 @@ export const GLOBAL_PRESET_KEYS = Object.freeze([
   "shadowColor",
   "shadowDepth",
   "shadowOpacity",
+  "shadowBlur",
   "layerParallax",
   "parallaxStrength",
   "edgeZoom",

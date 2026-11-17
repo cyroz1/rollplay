@@ -86,6 +86,7 @@ const state = {
     shadowColor: "#142027",
     shadowDepth: 100,
     shadowOpacity: 28,
+    shadowBlur: 40,
     layerParallax: true,
     parallaxStrength: 100,
     edgeZoom: false,
@@ -930,6 +931,7 @@ function refreshSettingsControls() {
   for (const [id, key, outputId] of [
     ["shadow-depth-input", "shadowDepth", "shadow-depth-value"],
     ["shadow-opacity-input", "shadowOpacity", "shadow-opacity-value"],
+    ["shadow-blur-input", "shadowBlur", "shadow-blur-value"],
   ]) {
     const value = Number(state.settings[key]);
     element(id).value = String(value);
@@ -1084,6 +1086,7 @@ function bindControls() {
   for (const [id, key, outputId] of [
     ["shadow-depth-input", "shadowDepth", "shadow-depth-value"],
     ["shadow-opacity-input", "shadowOpacity", "shadow-opacity-value"],
+    ["shadow-blur-input", "shadowBlur", "shadow-blur-value"],
   ]) {
     element(id).oninput = event => {
       state.settings[key] = Number(event.target.value);

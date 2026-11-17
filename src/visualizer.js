@@ -178,11 +178,32 @@ export class Visualizer {
   shadowStyle() {
     const rawDepth = Number(this.settings.shadowDepth ?? 100);
     const rawOpacity = Number(this.settings.shadowOpacity ?? 28);
+    const rawBlur = Number(this.settings.shadowBlur ?? 40);
     return {
       color: /^#[\da-f]{6}$/i.test(this.settings.shadowColor) ? this.settings.shadowColor : "#142027",
       depth: Number.isFinite(rawDepth) ? clamp(rawDepth / 100, 0, 2) : 1,
       opacity: Number.isFinite(rawOpacity) ? clamp(rawOpacity / 100, 0, 1) : .28,
+      blur: Number.isFinite(rawBlur) ? clamp(rawBlur / 100, 0, 1) : .4,
     };
+  }
+
+  shadowOffset(x, y, width, height, depth, shadow, zoom, scale) {
+    const base = (3 + depth * 11) * scale * shadow.depth * zoom;
+    if (base <= 0) return { x: 0, y: 0 };
+    // A virtual light hangs above the top-center of the frame, so each
+    // note's shadow falls away from it based on where the note actually
+    // is: notes near the light cast short shadows almost straight down,
+    // notes farther out cast longer ones angled away from center.
+    const dx = x - width / 2;
+    const dy = y + height * .3;
+    const distance = Math.hypot(dx, dy) || 1;
+    const reach = clamp(distance / (height * 1.15), .45, 1.35);
+    const length = base * reach;
+    return { x: dx / distance * length, y: dy / distance * length };
+  }
+
+  shadowBlurPixels(shadow, scale) {
+    return shadow.blur * 16 * scale;
   }
 
   layerDepthForIndex(index, count) {
@@ -232,43 +253,50 @@ export class Visualizer {
     if (!this.settings.effects || style.noteAnimation === "none") return { size: 0, offset: 0 };
     const hitAge = tick - note.at;
     if (hitAge < 0) return { size: 0, offset: 0 };
-    const impact = Math.exp(-hitAge / (this.project.ppq * .19));
-    if (style.noteAnimation === "pulse") return { size: impact * .72, offset: 0 };
+    // Slow, smooth decay: hits bloom and settle over most of a beat
+    // instead of snapping off, and every easing below starts and ends
+    // gently (smootherstep) so nothing moves at full speed instantly.
+    const impact = Math.exp(-hitAge / (this.project.ppq * .36));
+    const smoother = progress => progress * progress * progress * (progress * (progress * 6 - 15) + 10);
+    if (style.noteAnimation === "pulse") {
+      const swell = Math.sin(Math.min(1, hitAge / (this.project.ppq * .9)) * Math.PI);
+      return { size: impact * .6, offset: swell * impact * 2.4 * scale };
+    }
     if (style.noteAnimation === "drop") {
       const noteDuration = Math.max(1, Number(note.length) || 1);
-      const settleDuration = Math.min(noteDuration, this.project.ppq * .16);
+      const settleDuration = Math.min(noteDuration, this.project.ppq * .34);
       const distance = 22 * scale;
       if (hitAge <= noteDuration) {
         const progress = Math.min(1, hitAge / settleDuration);
-        return { size: 0, offset: distance * (1 - Math.pow(1 - progress, 3)) };
+        return { size: 0, offset: distance * smoother(progress) };
       }
       const releaseDuration = this.project.ppq * .18;
       const releaseProgress = Math.min(1, (hitAge - noteDuration) / releaseDuration);
-      return { size: 0, offset: distance * (1 - releaseProgress) };
+      return { size: 0, offset: distance * (1 - smoother(releaseProgress)) };
     }
     if (style.noteAnimation === "bounce") {
       const noteDuration = Math.max(1, Number(note.length) || 1);
-      const settleDuration = Math.min(noteDuration, this.project.ppq * .22);
+      const settleDuration = Math.min(noteDuration, this.project.ppq * .25);
       const distance = 22 * scale;
       if (hitAge > noteDuration) return { size: 0, offset: 0 };
       const progress = Math.min(1, hitAge / settleDuration);
       if (progress >= 1) return { size: 0, offset: 0 };
-      const eased = 1 + Math.pow(2, -10 * progress) * Math.sin((progress * 10 - .75) * (2 * Math.PI / 3));
+      const eased = 1 + Math.pow(2, -7.5 * progress) * Math.sin((progress * 7.5 - .75) * (2 * Math.PI / 3));
       return { size: 0, offset: distance * (1 - eased) };
     }
     if (style.noteAnimation === "wave") {
-      return { size: impact * .2, offset: Math.sin(hitAge / this.project.ppq * Math.PI * 7.4) * impact * 18 * scale };
+      return { size: impact * .2, offset: Math.sin(hitAge / this.project.ppq * Math.PI * 4.4) * impact * 15 * scale };
     }
-    return { size: impact * (.66 + Math.abs(Math.sin(hitAge / this.project.ppq * Math.PI * 5.2)) * .34), offset: 0 };
+    return { size: impact * (.62 + Math.abs(Math.sin(hitAge / this.project.ppq * Math.PI * 3.6)) * .3), offset: 0 };
   }
 
   noteHighlightOpacity(note, tick, style = this.layerStyle(note.patternId)) {
     if (tick < note.at || tick >= note.at + note.length || style.playedNoteHighlight === "none") return 0;
     if (style.playedNoteHighlight === "pulse") {
-      const pulseDuration = this.project.ppq * .5;
+      const pulseDuration = this.project.ppq * .62;
       const progress = Math.min(1, (tick - note.at) / pulseDuration);
       if (progress >= 1) return 0;
-      return Math.sin(progress * Math.PI) * .44;
+      return Math.sin(progress * Math.PI) * .4;
     }
     return .28;
   }
@@ -561,9 +589,13 @@ export class Visualizer {
       if (x + stepSize < -25 || x - stepSize > width + 30) return;
       if (this.settings.layerShadows !== false) {
         const shadow = this.shadowStyle();
-        const extrusion = (3 + depth * 11) * baseScale * shadow.depth * zoom;
-        if (extrusion > 0 && shadow.opacity > 0) {
-          diamond(context, x + extrusion, y + extrusion * .72, stepSize, shadow.color, fade * velocity * style.opacity * shadow.opacity, true);
+        const offset = this.shadowOffset(x, y, width, height, depth, shadow, zoom, baseScale);
+        if (shadow.depth > 0 && shadow.opacity > 0) {
+          const blur = this.shadowBlurPixels(shadow, baseScale);
+          context.save();
+          if (blur > 0) context.filter = `blur(${blur}px)`;
+          diamond(context, x + offset.x, y + offset.y, stepSize, shadow.color, fade * velocity * style.opacity * shadow.opacity, true);
+          context.restore();
         }
       }
       diamond(context, x, y, stepSize, stepColor, fade * velocity * style.opacity, true);
@@ -580,11 +612,15 @@ export class Visualizer {
     const alpha = fade * velocity * style.opacity;
     if (this.settings.layerShadows !== false) {
       const shadow = this.shadowStyle();
-      const extrusion = (3 + depth * 11) * baseScale * shadow.depth * zoom;
-      if (extrusion > 0 && shadow.opacity > 0) {
+      const offset = this.shadowOffset(x, y, width, height, depth, shadow, zoom, baseScale);
+      if (shadow.depth > 0 && shadow.opacity > 0) {
+        const blur = this.shadowBlurPixels(shadow, baseScale);
+        context.save();
+        if (blur > 0) context.filter = `blur(${blur}px)`;
         context.globalAlpha = alpha * shadow.opacity;
         context.fillStyle = shadow.color;
-        rounded(context, x + extrusion, y + extrusion * .72 - noteHeight / 2, noteWidth, noteHeight, 8 * scale);
+        rounded(context, x + offset.x, y + offset.y - noteHeight / 2, noteWidth, noteHeight, 8 * scale);
+        context.restore();
       }
     }
     context.globalAlpha = alpha;
